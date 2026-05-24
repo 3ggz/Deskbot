@@ -29,5 +29,13 @@ void setup() {
 }
 
 void loop() {
-    delay(1000);
+    static uint8_t current = 0;
+    static uint32_t last_change = 0;
+    if (millis() - last_change > 2000) {
+        current = (current + 1) % EMOTION_COUNT;
+        face_render_emotion((EmotionId)current, 0x4DDF);
+        Serial.print("LOG cycle: ");
+        Serial.println(EMOTION_NAMES[current]);
+        last_change = millis();
+    }
 }
