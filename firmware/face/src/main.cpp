@@ -42,7 +42,7 @@ static void handle_command(const char *line) {
     } else if (strcmp(line, "PING") == 0) {
         Serial.println("PONG");
     } else if (strcmp(line, "BLINK") == 0) {
-        // Animation in Task 14
+        state_trigger_blink(g_state, millis());
         Serial.println("OK");
     } else {
         Serial.print("LOG bad_cmd: ");
@@ -64,7 +64,7 @@ void setup() {
     }
     state_init(g_state);
     parser_setup(handle_command);
-    Serial.println("READY v0.4");
+    Serial.println("READY v0.5");
 }
 
 void loop() {

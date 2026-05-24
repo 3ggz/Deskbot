@@ -1,5 +1,6 @@
 // firmware/face/src/state.h
-// FaceState: current shape, target shape, color, and animation timing.
+// FaceState: current shape, target shape, color, and animation timing
+// + idle progression (blink, glance, breathe, sleepy).
 #pragma once
 #include "emotions.h"
 
@@ -22,10 +23,24 @@ struct FaceState {
     uint32_t color_start_ms;
     uint32_t last_cmd_ms;
     FaceMode mode;
+
+    // Blink scheduling
+    bool     blinking;
+    uint32_t blink_start_ms;
+    uint32_t next_blink_ms;
+
+    // Glance
+    uint32_t next_glance_ms;
+    int8_t   glance_x_offset;
+    uint32_t glance_end_ms;
 };
 
 void state_init(FaceState &s);
 void state_set_target_emotion(FaceState &s, EmotionId id, uint16_t color, uint32_t now_ms);
 void state_update_animation(FaceState &s, uint32_t now_ms);
+
+void state_trigger_blink(FaceState &s, uint32_t now_ms);
+void state_schedule_next_blink(FaceState &s, uint32_t now_ms);
+void state_trigger_glance(FaceState &s, uint32_t now_ms);
 
 float ease_cubic(float t);
