@@ -56,11 +56,8 @@ void setup() {
 
     I2C_Init();
     TCA9554PWR_Init(0x00);
-    // Silence any onboard audio amp: drive EXIO_PIN8 HIGH (typical active-low shutdown).
-    // On the Waveshare ESP32-S3-Touch-LCD-2.1 the audio amp enable is wired to bit 7 of
-    // the TCA9554 expander (EXIO_PIN8).  HIGH = shutdown/muted on most active-low-EN amps.
-    // If hum persists, also try EXIO_PIN5: Set_EXIO(EXIO_PIN5, High);
-    Set_EXIO(EXIO_PIN8, High);
+    // EXIO_PIN8 is the onboard piezo BUZZER on this board — explicitly hold LOW to keep it silent.
+    Set_EXIO(EXIO_PIN8, Low);
     LCD_Init();
     Set_Backlight(50);
 
