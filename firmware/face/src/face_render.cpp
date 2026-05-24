@@ -54,19 +54,23 @@ void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color) 
     }
 }
 
-static void fb_fill_circle(int cx, int cy, int radius, uint16_t color) {
+static void fb_fill_ellipse(int cx, int cy, int rx, int ry, uint16_t color) {
     if (!g_fb) return;
-    if (radius <= 0) return;
-    int x0 = max(0, cx - radius);
-    int y0 = max(0, cy - radius);
-    int x1 = min(FACE_WIDTH  - 1, cx + radius);
-    int y1 = min(FACE_HEIGHT - 1, cy + radius);
-    int r2 = radius * radius;
+    if (rx <= 0 || ry <= 0) return;
+    int x0 = max(0, cx - rx);
+    int y0 = max(0, cy - ry);
+    int x1 = min(FACE_WIDTH  - 1, cx + rx);
+    int y1 = min(FACE_HEIGHT - 1, cy + ry);
+    float inv_rx2 = 1.0f / (float)(rx * rx);
+    float inv_ry2 = 1.0f / (float)(ry * ry);
     for (int py = y0; py <= y1; ++py) {
         int dy = py - cy;
+        float ny2 = (float)(dy * dy) * inv_ry2;
+        if (ny2 > 1.0f) continue;
         for (int px = x0; px <= x1; ++px) {
             int dx = px - cx;
-            if (dx * dx + dy * dy <= r2) {
+            float nx2 = (float)(dx * dx) * inv_rx2;
+            if (nx2 + ny2 <= 1.0f) {
                 g_fb[py * FACE_WIDTH + px] = color;
             }
         }
@@ -136,47 +140,62 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
     if (!g_fb) return;
     fb_fill(0x0000);
 
-    auto draw_eye = [&](const EyeShape &s, int8_t tilt, int gaze_dir) {
+    // Build a lighter pupil color: blend current eye color with white at ~60%.
+    auto lighten = [&](uint16_t c) -> uint16_t {
+        uint8_t r = (c >> 11) & 0x1F;
+        uint8_t g = (c >> 5)  & 0x3F;
+        uint8_t b =  c        & 0x1F;
+        // 60% toward white per channel.
+        r = (uint8_t)(r + (0x1F - r) * 0.6f);
+        g = (uint8_t)(g + (0x3F - g) * 0.6f);
+        b = (uint8_t)(b + (0x1F - b) * 0.6f);
+        return (uint16_t)((r << 11) | (g << 5) | b);
+    };
+    uint16_t pupil_color = lighten(color);
+
+    auto draw_eye = [&](const EyeShape &s, int8_t tilt, int gaze_offset) {
         int cx = (FACE_WIDTH  / 2) + s.x_offset;
         int cy = (FACE_HEIGHT / 2) + s.y_offset;
         int r  = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
 
-        // 1. Draw the main eye shape (tilted if needed).
+        // 1. Eye shape (tilted if needed).
         if (tilt != 0) {
             fb_fill_round_rect_tilted(cx, cy, s.width, s.height, r, (float)tilt, color);
         } else {
             fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
         }
 
-        // 2. Skip the pupil when the eye is collapsed (blink or sleepy slits).
+        // 2. Skip pupil when eye is collapsed (blink, sleepy).
         if (s.height < 28) return;
 
-        // 3. Pupil size scales with eye but with a floor and ceiling.
-        int pupil_r = s.width / 6;
-        if (pupil_r < 8)  pupil_r = 8;
-        if (pupil_r > 20) pupil_r = 20;
-        // Stay inside the eye even when shifted by gaze.
-        int max_shift_x = (s.width  / 2) - pupil_r - 4;
+        // 3. Pupil dimensions: vertical ellipse. Half-height = 2× half-width.
+        int pupil_rx = s.width / 6;
+        if (pupil_rx < 8)  pupil_rx = 8;
+        if (pupil_rx > 20) pupil_rx = 20;
+        int pupil_ry = pupil_rx * 2;
+        // Clamp height to fit inside the eye.
+        int max_pupil_ry = (s.height / 2) - 6;
+        if (max_pupil_ry < 6) return;  // eye too short for a tall pupil; skip
+        if (pupil_ry > max_pupil_ry) pupil_ry = max_pupil_ry;
+
+        // 4. Clamp pupil position so it stays inside the eye even at peak gaze.
+        int max_shift_x = (s.width  / 2) - pupil_rx - 4;
         if (max_shift_x < 0) max_shift_x = 0;
-        int max_shift_y = (s.height / 2) - pupil_r - 4;
+        int max_shift_y = (s.height / 2) - pupil_ry - 4;
         if (max_shift_y < 0) max_shift_y = 0;
 
-        // 4. Pupil position: center of eye + clamped gaze direction (-1 left, 0 center, +1 right).
-        int px = cx + gaze_dir * max_shift_x;
-        // Default vertical bias: slightly UP (eyes look slightly up at rest, gives an "alert" look).
+        // 5. Position: center + clamped gaze offset. Slight upward bias for "alert" look.
+        int desired_shift = gaze_offset;
+        if (desired_shift >  max_shift_x) desired_shift =  max_shift_x;
+        if (desired_shift < -max_shift_x) desired_shift = -max_shift_x;
+        int px = cx + desired_shift;
         int py = cy - (max_shift_y / 4);
 
-        // 5. Draw the highlight in bright white.
-        fb_fill_circle(px, py, pupil_r, 0xFFFF);
+        fb_fill_ellipse(px, py, pupil_rx, pupil_ry, pupil_color);
     };
 
-    // gaze_dir is -1, 0, or +1 based on the sign of glance_x_offset.
-    int gaze_dir = 0;
-    if      (glance_x_offset < 0) gaze_dir = -1;
-    else if (glance_x_offset > 0) gaze_dir = +1;
-
-    draw_eye(p.left,  p.left.tilt_left,   gaze_dir);
-    draw_eye(p.right, p.right.tilt_right, gaze_dir);
+    draw_eye(p.left,  p.left.tilt_left,   glance_x_offset);
+    draw_eye(p.right, p.right.tilt_right, glance_x_offset);
 
     fb_push_to_lcd();
 }

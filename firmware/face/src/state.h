@@ -44,3 +44,6 @@ void state_schedule_next_blink(FaceState &s, uint32_t now_ms);
 void state_trigger_glance(FaceState &s, uint32_t now_ms);
 
 float ease_cubic(float t);
+
+// Returns the current pupil X offset including smooth glance animation + always-on subtle drift.
+int state_current_pupil_offset(const FaceState &s, uint32_t now_ms);

@@ -6,7 +6,7 @@ static const uint32_t SHAPE_TRANSITION_MS = 300;
 static const uint32_t COLOR_TRANSITION_MS = 400;
 static const uint32_t BLINK_DURATION_MS   = 200;   // close 80 + hold 40 + open 80
 static const int16_t  BLINK_MIN_HEIGHT    = 10;
-static const uint32_t GLANCE_DURATION_MS  = 700;
+static const uint32_t GLANCE_DURATION_MS  = 600;
 static const int8_t   GLANCE_MAX_OFFSET   = 20;
 static const float    BREATHE_AMP         = 0.05f;
 static const float    BREATHE_PERIOD_MS   = 3000.0f;
@@ -21,6 +21,30 @@ float ease_cubic(float t) {
     if (t < 0) t = 0;
     if (t > 1) t = 1;
     return t < 0.5f ? 4 * t * t * t : 1 - powf(-2 * t + 2, 3) / 2.0f;
+}
+
+int state_current_pupil_offset(const FaceState &s, uint32_t now_ms) {
+    int offset = 0;
+
+    // Smooth glance contribution: bell curve via ease_cubic on out-and-back time.
+    if (now_ms < s.glance_end_ms && s.glance_x_offset != 0) {
+        uint32_t glance_start = s.glance_end_ms - GLANCE_DURATION_MS;
+        if (now_ms >= glance_start) {
+            float t = (float)(now_ms - glance_start) / (float)GLANCE_DURATION_MS;
+            float bell;
+            if (t < 0.5f) bell = ease_cubic(t * 2.0f);
+            else          bell = ease_cubic((1.0f - t) * 2.0f);
+            offset += (int)(s.glance_x_offset * bell);
+        }
+    }
+
+    // Always-on "curious drift": slow sine wave so the pupils never stay perfectly still.
+    if (s.mode != MODE_SLEEPY) {
+        float drift = sinf((float)now_ms * 0.0009f) * 5.0f;  // ±5 px, ~7s period
+        offset += (int)drift;
+    }
+
+    return offset;
 }
 
 static int16_t lerp_i16(int16_t a, int16_t b, float t) {
@@ -56,19 +80,19 @@ static uint16_t lerp_color565(uint16_t a, uint16_t b, float t) {
 }
 
 void state_schedule_next_blink(FaceState &s, uint32_t now_ms) {
-    s.next_blink_ms = now_ms + 3000 + (uint32_t)random(2000);  // 3-5s
+    s.next_blink_ms = now_ms + 6000 + (uint32_t)random(3000);  // 6-9s
 }
 
 void state_trigger_blink(FaceState &s, uint32_t now_ms) {
     s.blinking = true;
     s.blink_start_ms = now_ms;
-    s.next_blink_ms = now_ms + BLINK_DURATION_MS + 3000 + (uint32_t)random(2000);
+    s.next_blink_ms = now_ms + BLINK_DURATION_MS + 6000 + (uint32_t)random(3000);
 }
 
 void state_trigger_glance(FaceState &s, uint32_t now_ms) {
     s.glance_x_offset = (random(2) == 0) ? -GLANCE_MAX_OFFSET : GLANCE_MAX_OFFSET;
     s.glance_end_ms = now_ms + GLANCE_DURATION_MS;
-    s.next_glance_ms = now_ms + 6000 + (uint32_t)random(6000);  // 6-12s (was 15-25s)
+    s.next_glance_ms = now_ms + 2000 + (uint32_t)random(2000);  // 2-4s
 }
 
 void state_init(FaceState &s) {
@@ -138,10 +162,8 @@ void state_update_animation(FaceState &s, uint32_t now_ms) {
         s.transition_start_ms = now_ms;
     }
 
-    // 4. Glance — only active in GLANCE/BREATHE (NOT sleepy).
-    //    Glance offset is now applied to the PUPIL position by face_render_state,
-    //    not to the eye position. We just keep the timing logic.
-    if (s.mode == MODE_IDLE_GLANCE || s.mode == MODE_IDLE_BREATHE) {
+    // 4. Glance — triggers in every mode except SLEEPY — keeps Pip lively even right after a command.
+    if (s.mode != MODE_SLEEPY) {
         if (now_ms >= s.next_glance_ms) {
             state_trigger_glance(s, now_ms);
         }
@@ -172,8 +194,8 @@ void state_update_animation(FaceState &s, uint32_t now_ms) {
             s.current.left.height  = lerp_i16(lh, BLINK_MIN_HEIGHT, bp);
             s.current.right.height = lerp_i16(rh, BLINK_MIN_HEIGHT, bp);
         }
-    } else if (s.mode != MODE_ACTIVE && now_ms >= s.next_blink_ms) {
-        // Auto-blink only in idle states (not while a user-driven emotion just changed).
+    } else if (s.mode != MODE_SLEEPY && now_ms >= s.next_blink_ms) {
+        // Auto-blink in all non-sleepy states (blinks even while active or idle).
         state_trigger_blink(s, now_ms);
     }
 }
