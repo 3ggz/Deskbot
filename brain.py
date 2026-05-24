@@ -137,6 +137,7 @@ class Brain:
     """
 
     def __init__(self):
+        self.face = None  # Set early so partial-init is safe
         if not ANTHROPIC_API_KEY or ANTHROPIC_API_KEY == "YOUR_KEY_HERE":
             raise ValueError(
                 "No API key found. Set ANTHROPIC_API_KEY environment variable "
@@ -216,36 +217,37 @@ def terminal_chat():
     print(f"{'='*50}\n")
 
     brain = Brain()
+    try:
+        # Greet on startup
+        greeting = brain.think("Say hello and introduce yourself briefly.")
+        print(f"\n🤖 [{greeting['emotion'].upper()}] {greeting['speech']}")
+        print(f"   Movement: {greeting['movement']} | LED: {greeting['led_color']}\n")
 
-    # Greet on startup
-    greeting = brain.think("Say hello and introduce yourself briefly.")
-    print(f"\n🤖 [{greeting['emotion'].upper()}] {greeting['speech']}")
-    print(f"   Movement: {greeting['movement']} | LED: {greeting['led_color']}\n")
+        while True:
+            try:
+                user_input = input("You: ").strip()
 
-    while True:
-        try:
-            user_input = input("You: ").strip()
+                if not user_input:
+                    continue
+                if user_input.lower() == "quit":
+                    print("Shutting down...")
+                    break
+                if user_input.lower() == "clear":
+                    brain.clear_history()
+                    print("(Conversation history cleared)\n")
+                    continue
 
-            if not user_input:
-                continue
-            if user_input.lower() == "quit":
-                print("Shutting down...")
-                brain.face.close()
+                response = brain.think(user_input)
+
+                print(f"\n🤖 [{response['emotion'].upper()}] {response['speech']}")
+                print(f"   Movement: {response['movement']} | LED: {response['led_color']}\n")
+
+            except KeyboardInterrupt:
+                print("\nShutting down...")
                 break
-            if user_input.lower() == "clear":
-                brain.clear_history()
-                print("(Conversation history cleared)\n")
-                continue
-
-            response = brain.think(user_input)
-
-            print(f"\n🤖 [{response['emotion'].upper()}] {response['speech']}")
-            print(f"   Movement: {response['movement']} | LED: {response['led_color']}\n")
-
-        except KeyboardInterrupt:
-            print("\nShutting down...")
+    finally:
+        if brain.face is not None:
             brain.face.close()
-            break
 
 
 if __name__ == "__main__":
