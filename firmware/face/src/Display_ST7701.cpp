@@ -328,8 +328,8 @@ void ST7701_Init()
     .clk_src = LCD_CLK_SRC_XTAL,
     .timings = {
       .pclk_hz = ESP_PANEL_LCD_RGB_TIMING_FREQ_HZ,
-      .h_res = ESP_PANEL_LCD_HEIGHT,
-      .v_res = ESP_PANEL_LCD_WIDTH,
+      .h_res = ESP_PANEL_LCD_WIDTH,
+      .v_res = ESP_PANEL_LCD_HEIGHT,
       .hsync_pulse_width = ESP_PANEL_LCD_RGB_TIMING_HPW,
       .hsync_back_porch = ESP_PANEL_LCD_RGB_TIMING_HBP,
       .hsync_front_porch = ESP_PANEL_LCD_RGB_TIMING_HFP,
@@ -428,6 +428,6 @@ void Set_Backlight(uint8_t Light)
     uint32_t Backlight = Light * 10;
     if (Backlight == 1000)
       Backlight = 1024;
-    ledcWrite(LCD_Backlight_PIN, Backlight);
+    ledcWrite(PWM_Channel, Backlight);
   }
 }
