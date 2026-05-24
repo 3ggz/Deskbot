@@ -6,7 +6,7 @@ static const uint32_t SHAPE_TRANSITION_MS = 300;
 static const uint32_t COLOR_TRANSITION_MS = 400;
 static const uint32_t BLINK_DURATION_MS   = 200;   // close 80 + hold 40 + open 80
 static const int16_t  BLINK_MIN_HEIGHT    = 10;
-static const uint32_t GLANCE_DURATION_MS  = 600;
+static const uint32_t GLANCE_DURATION_MS  = 1100;
 static const int8_t   GLANCE_MAX_OFFSET   = 20;
 static const float    BREATHE_AMP         = 0.05f;
 static const float    BREATHE_PERIOD_MS   = 3000.0f;
@@ -92,7 +92,7 @@ void state_trigger_blink(FaceState &s, uint32_t now_ms) {
 void state_trigger_glance(FaceState &s, uint32_t now_ms) {
     s.glance_x_offset = (random(2) == 0) ? -GLANCE_MAX_OFFSET : GLANCE_MAX_OFFSET;
     s.glance_end_ms = now_ms + GLANCE_DURATION_MS;
-    s.next_glance_ms = now_ms + 2000 + (uint32_t)random(2000);  // 2-4s
+    s.next_glance_ms = now_ms + 8000 + (uint32_t)random(7000);  // 8-15s
 }
 
 void state_init(FaceState &s) {
