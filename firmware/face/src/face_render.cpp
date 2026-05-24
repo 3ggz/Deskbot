@@ -54,6 +54,59 @@ void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color) 
     }
 }
 
+// Software rotation: draw a rounded rect centered at (cx, cy) tilted by angle_deg.
+// Positive angle = counter-clockwise in screen-space (note: y-axis points DOWN on screen).
+// Uses inverse-mapping: for each pixel in the bounding box, rotate it back into the
+// un-rotated rect's space and apply the same rounded-rect test as fb_fill_round_rect.
+static void fb_fill_round_rect_tilted(int cx, int cy, int w, int h, int radius, float angle_deg, uint16_t color) {
+    if (!g_fb) return;
+    if (radius < 0) radius = 0;
+    if (radius > w / 2) radius = w / 2;
+    if (radius > h / 2) radius = h / 2;
+    const int r2 = radius * radius;
+
+    // Bounding box big enough to contain the rotated rect (diagonal radius + 1 px slack).
+    int half_diag = (int)ceilf(sqrtf((float)(w*w + h*h)) * 0.5f) + 1;
+    int x0 = max(0, cx - half_diag);
+    int y0 = max(0, cy - half_diag);
+    int x1 = min(FACE_WIDTH  - 1, cx + half_diag);
+    int y1 = min(FACE_HEIGHT - 1, cy + half_diag);
+
+    float rad = angle_deg * 3.14159265f / 180.0f;
+    float cs = cosf(rad);
+    float sn = sinf(rad);
+
+    // Half-extents for local-coord origin shift.
+    float half_w = w * 0.5f;
+    float half_h = h * 0.5f;
+
+    for (int py = y0; py <= y1; ++py) {
+        for (int px = x0; px <= x1; ++px) {
+            // Translate to eye center, then inverse-rotate to un-tilted frame.
+            float dx = px - cx;
+            float dy = py - cy;
+            // Inverse rotation by -angle: (rx, ry) in un-tilted local frame, origin at eye center.
+            float rx =  dx * cs + dy * sn;
+            float ry = -dx * sn + dy * cs;
+            // Shift origin to top-left of un-tilted rect.
+            int ilx = (int)floorf(rx + half_w);
+            int ily = (int)floorf(ry + half_h);
+            if (ilx < 0 || ilx >= w || ily < 0 || ily >= h) continue;
+
+            // Same rounded-rect test as fb_fill_round_rect.
+            int kdx = 0, kdy = 0;
+            if      (ily < radius)        kdy = radius - ily;
+            else if (ily >= h - radius)   kdy = ily - (h - radius) + 1;
+            if      (ilx < radius)        kdx = radius - ilx;
+            else if (ilx >= w - radius)   kdx = ilx - (w - radius) + 1;
+            bool in_corner = (kdy != 0 && kdx != 0);
+            if (!in_corner || kdx * kdx + kdy * kdy <= r2) {
+                g_fb[py * FACE_WIDTH + px] = color;
+            }
+        }
+    }
+}
+
 void fb_push_to_lcd() {
     if (!g_fb) return;
     // LCD_addWindow expects (x0, y0, x1, y1, uint8_t*) with x1/y1 INCLUSIVE.
@@ -64,15 +117,32 @@ void face_render_state(const EyePair &p, uint16_t color) {
     if (!g_fb) return;
     fb_fill(0x0000);
 
-    auto draw = [&](const EyeShape &s) {
-        int x = (FACE_WIDTH  / 2) + s.x_offset - s.width  / 2;
-        int y = (FACE_HEIGHT / 2) + s.y_offset - s.height / 2;
-        int r = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
-        fb_fill_round_rect(x, y, s.width, s.height, r, color);
-    };
+    // Draw left eye — uses tilt_left.
+    {
+        const EyeShape &s = p.left;
+        int cx = (FACE_WIDTH  / 2) + s.x_offset;
+        int cy = (FACE_HEIGHT / 2) + s.y_offset;
+        int r  = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
+        if (s.tilt_left != 0) {
+            fb_fill_round_rect_tilted(cx, cy, s.width, s.height, r, (float)s.tilt_left, color);
+        } else {
+            fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
+        }
+    }
 
-    draw(p.left);
-    draw(p.right);
+    // Draw right eye — uses tilt_right.
+    {
+        const EyeShape &s = p.right;
+        int cx = (FACE_WIDTH  / 2) + s.x_offset;
+        int cy = (FACE_HEIGHT / 2) + s.y_offset;
+        int r  = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
+        if (s.tilt_right != 0) {
+            fb_fill_round_rect_tilted(cx, cy, s.width, s.height, r, (float)s.tilt_right, color);
+        } else {
+            fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
+        }
+    }
+
     fb_push_to_lcd();
 }
 
