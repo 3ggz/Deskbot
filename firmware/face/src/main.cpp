@@ -71,5 +71,5 @@ void loop() {
     parser_poll();
     state_update_animation(g_state, millis());
     face_render_state(g_state.current, g_state.current_color);
-    delay(33);  // ~30 FPS
+    delay(16);  // ~60 FPS
 }
