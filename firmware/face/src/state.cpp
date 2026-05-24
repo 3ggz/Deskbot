@@ -6,7 +6,7 @@ static const uint32_t SHAPE_TRANSITION_MS = 300;
 static const uint32_t COLOR_TRANSITION_MS = 400;
 static const uint32_t BLINK_DURATION_MS   = 200;   // close 80 + hold 40 + open 80
 static const int16_t  BLINK_MIN_HEIGHT    = 10;
-static const uint32_t GLANCE_DURATION_MS  = 400;
+static const uint32_t GLANCE_DURATION_MS  = 700;
 static const int8_t   GLANCE_MAX_OFFSET   = 20;
 static const float    BREATHE_AMP         = 0.05f;
 static const float    BREATHE_PERIOD_MS   = 3000.0f;
@@ -68,7 +68,7 @@ void state_trigger_blink(FaceState &s, uint32_t now_ms) {
 void state_trigger_glance(FaceState &s, uint32_t now_ms) {
     s.glance_x_offset = (random(2) == 0) ? -GLANCE_MAX_OFFSET : GLANCE_MAX_OFFSET;
     s.glance_end_ms = now_ms + GLANCE_DURATION_MS;
-    s.next_glance_ms = now_ms + 15000 + (uint32_t)random(10000);  // 15-25s
+    s.next_glance_ms = now_ms + 6000 + (uint32_t)random(6000);  // 6-12s (was 15-25s)
 }
 
 void state_init(FaceState &s) {
@@ -139,13 +139,11 @@ void state_update_animation(FaceState &s, uint32_t now_ms) {
     }
 
     // 4. Glance — only active in GLANCE/BREATHE (NOT sleepy).
+    //    Glance offset is now applied to the PUPIL position by face_render_state,
+    //    not to the eye position. We just keep the timing logic.
     if (s.mode == MODE_IDLE_GLANCE || s.mode == MODE_IDLE_BREATHE) {
         if (now_ms >= s.next_glance_ms) {
             state_trigger_glance(s, now_ms);
-        }
-        if (now_ms < s.glance_end_ms) {
-            s.current.left.x_offset  += s.glance_x_offset;
-            s.current.right.x_offset += s.glance_x_offset;
         }
     }
 

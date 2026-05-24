@@ -64,12 +64,13 @@ void setup() {
     }
     state_init(g_state);
     parser_setup(handle_command);
-    Serial.println("READY v0.5");
+    Serial.println("READY v0.6");
 }
 
 void loop() {
     parser_poll();
     state_update_animation(g_state, millis());
-    face_render_state(g_state.current, g_state.current_color);
+    int gx = (millis() < g_state.glance_end_ms) ? g_state.glance_x_offset : 0;
+    face_render_state(g_state.current, g_state.current_color, gx);
     delay(16);  // ~60 FPS
 }

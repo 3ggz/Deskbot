@@ -54,6 +54,25 @@ void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color) 
     }
 }
 
+static void fb_fill_circle(int cx, int cy, int radius, uint16_t color) {
+    if (!g_fb) return;
+    if (radius <= 0) return;
+    int x0 = max(0, cx - radius);
+    int y0 = max(0, cy - radius);
+    int x1 = min(FACE_WIDTH  - 1, cx + radius);
+    int y1 = min(FACE_HEIGHT - 1, cy + radius);
+    int r2 = radius * radius;
+    for (int py = y0; py <= y1; ++py) {
+        int dy = py - cy;
+        for (int px = x0; px <= x1; ++px) {
+            int dx = px - cx;
+            if (dx * dx + dy * dy <= r2) {
+                g_fb[py * FACE_WIDTH + px] = color;
+            }
+        }
+    }
+}
+
 // Software rotation: draw a rounded rect centered at (cx, cy) tilted by angle_deg.
 // Positive angle = counter-clockwise in screen-space (note: y-axis points DOWN on screen).
 // Uses inverse-mapping: for each pixel in the bounding box, rotate it back into the
@@ -113,35 +132,51 @@ void fb_push_to_lcd() {
     LCD_addWindow(0, 0, FACE_WIDTH - 1, FACE_HEIGHT - 1, (uint8_t *)g_fb);
 }
 
-void face_render_state(const EyePair &p, uint16_t color) {
+void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
     if (!g_fb) return;
     fb_fill(0x0000);
 
-    // Draw left eye — uses tilt_left.
-    {
-        const EyeShape &s = p.left;
+    auto draw_eye = [&](const EyeShape &s, int8_t tilt, int gaze_dir) {
         int cx = (FACE_WIDTH  / 2) + s.x_offset;
         int cy = (FACE_HEIGHT / 2) + s.y_offset;
         int r  = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
-        if (s.tilt_left != 0) {
-            fb_fill_round_rect_tilted(cx, cy, s.width, s.height, r, (float)s.tilt_left, color);
-        } else {
-            fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
-        }
-    }
 
-    // Draw right eye — uses tilt_right.
-    {
-        const EyeShape &s = p.right;
-        int cx = (FACE_WIDTH  / 2) + s.x_offset;
-        int cy = (FACE_HEIGHT / 2) + s.y_offset;
-        int r  = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
-        if (s.tilt_right != 0) {
-            fb_fill_round_rect_tilted(cx, cy, s.width, s.height, r, (float)s.tilt_right, color);
+        // 1. Draw the main eye shape (tilted if needed).
+        if (tilt != 0) {
+            fb_fill_round_rect_tilted(cx, cy, s.width, s.height, r, (float)tilt, color);
         } else {
             fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
         }
-    }
+
+        // 2. Skip the pupil when the eye is collapsed (blink or sleepy slits).
+        if (s.height < 28) return;
+
+        // 3. Pupil size scales with eye but with a floor and ceiling.
+        int pupil_r = s.width / 6;
+        if (pupil_r < 8)  pupil_r = 8;
+        if (pupil_r > 20) pupil_r = 20;
+        // Stay inside the eye even when shifted by gaze.
+        int max_shift_x = (s.width  / 2) - pupil_r - 4;
+        if (max_shift_x < 0) max_shift_x = 0;
+        int max_shift_y = (s.height / 2) - pupil_r - 4;
+        if (max_shift_y < 0) max_shift_y = 0;
+
+        // 4. Pupil position: center of eye + clamped gaze direction (-1 left, 0 center, +1 right).
+        int px = cx + gaze_dir * max_shift_x;
+        // Default vertical bias: slightly UP (eyes look slightly up at rest, gives an "alert" look).
+        int py = cy - (max_shift_y / 4);
+
+        // 5. Draw the highlight in bright white.
+        fb_fill_circle(px, py, pupil_r, 0xFFFF);
+    };
+
+    // gaze_dir is -1, 0, or +1 based on the sign of glance_x_offset.
+    int gaze_dir = 0;
+    if      (glance_x_offset < 0) gaze_dir = -1;
+    else if (glance_x_offset > 0) gaze_dir = +1;
+
+    draw_eye(p.left,  p.left.tilt_left,   gaze_dir);
+    draw_eye(p.right, p.right.tilt_right, gaze_dir);
 
     fb_push_to_lcd();
 }
