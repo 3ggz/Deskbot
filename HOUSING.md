@@ -85,7 +85,7 @@ For DIY head (PVC/plastic):
 3. Use M3 x 8mm screws + washers to secure
 
 Cable routing:
-- Display ribbon/wires route through a small slot in the head bottom
+- USB-C cable from ESP32-S3-Touch-LCD-2.1 routes through a slot in the head bottom
 - Servo wires from pan-tilt route to PCA9685 in body
 - All wires bundle through the neck column into the body shell
 
@@ -114,7 +114,7 @@ Body shell (top view):
 - All main compute and power
 
 **Cable bundle between them:**
-- SPI (display): 6 wires
+- USB-C (face display — ESP32-S3-Touch-LCD-2.1): 1 cable
 - I²S audio out (DAC): 3 wires
 - I²S audio in (mic): 4 wires
 - I²C (PCA9685): 2 wires + power
@@ -130,7 +130,7 @@ Route through the desk or along the back — keep the front clean.
 
 | Component | Dimensions |
 |---|---|
-| Waveshare 2.1" round display | ~55mm diameter, ~5mm thick |
+| Waveshare ESP32-S3-Touch-LCD-2.1 | ~72mm × 72mm PCB, ~55mm visible round LCD |
 | XiaoR pan-tilt base footprint | ~60mm × 60mm |
 | SG90 servo | 23mm × 12.5mm × 29mm |
 | PCA9685 board | ~62mm × 26mm |

@@ -9,7 +9,23 @@ An AI-powered desktop companion robot. Small, cute, friendly. It sits on a desk,
 
 **The robot body is separate from the Pi housing.** The Pi 5 sits in its CanaKit case on the desk. The robot body connects to it via cables. This keeps the Pi fully reusable for other projects.
 
-**The AI runs in the cloud via API.** The Pi handles audio I/O, display, servo control, and orchestration. The heavy intelligence comes from the Anthropic API over WiFi.
+**The AI runs in the cloud via API.** The Pi handles audio I/O, serial comms to the face, servo control, and orchestration. The heavy intelligence comes from the Anthropic API over WiFi.
+
+---
+
+## Hardware Reality Update (Stage 2 Architecture Pivot)
+
+The original plan called for a Pi-driven SPI display. **That is not what was built.**
+
+**Stage 2 uses the Waveshare ESP32-S3-Touch-LCD-2.1** — an integrated dev board with:
+- ESP32-S3 microcontroller
+- ST7701S 480×480 round RGB LCD (parallel interface, driven directly by the ESP32)
+- CST816S capacitive touch controller
+- TCA9554 I²C IO expander (routes RST, CS, buzzer, etc.)
+
+**The Pi does NOT wire to this display via GPIO or SPI.** The ESP32-S3 drives the display entirely on its own. The Pi talks to the ESP32 over a single USB-C cable. That's the entire interface between them.
+
+See the System Architecture section below for the updated diagram.
 
 ---
 
@@ -22,12 +38,12 @@ An AI-powered desktop companion robot. Small, cute, friendly. It sits on a desk,
 | Arduino UNO R4 WiFi | Available as secondary/helper MCU if needed |
 | Arduino Nano 33 BLE Sense Rev2 | Available — has onboard IMU, mic, BLE |
 
-### Display
+### Display / Face
 | Part | Notes |
 |---|---|
-| Hosyond 1.28" Round TFT LCD (GC9A01, 240×240) — 3 pack | Already owned. Good starter but small. |
-| Hosyond 4.0" 480×320 TFT Touch Screen | Available but rectangular — not ideal for robot face |
-| **Waveshare 2.1" Round LCD (480×480, GC9A01-based)** | **TARGET DISPLAY — ORDER THIS if not yet ordered. ~$20. Best face screen for this build.** |
+| **Waveshare ESP32-S3-Touch-LCD-2.1** | **THE FACE — already in hand, working.** Integrated ESP32-S3 + 480×480 round LCD + touch + IO expander on one PCB. |
+| Hosyond 1.28" Round TFT LCD (GC9A01, 240×240) — 3 pack | Already owned. Too small for robot face. |
+| Hosyond 4.0" 480×320 TFT Touch Screen | Available but rectangular — not used. |
 
 ### Audio
 | Part | Notes |
@@ -59,7 +75,6 @@ An AI-powered desktop companion robot. Small, cute, friendly. It sits on a desk,
 | ELEGOO 120pcs Dupont Jumper Wires | All connection types |
 | Arduino Breadboard Power Supply (3.3V/5V) | Bench power for breadboard work |
 | SunFounder BreadVolt Breadboard Power Supply | Additional bench power |
-| SunFounder PCA9685 16-Ch PWM | I²C servo driver (listed above) |
 
 ### Tools
 | Part | Notes |
@@ -68,14 +83,6 @@ An AI-powered desktop companion robot. Small, cute, friendly. It sits on a desk,
 | Lesnow Solder Flux Paste + Solder Wick | Soldering consumables |
 | BOJACK 840pc Solderless Breadboard Kit | Wire assortment |
 | Premium Magnetic Silicone Soldering Mat | Work surface |
-| Cable Matters USB-C to Micro USB cable | General use |
-
-### Still Needed / To Order
-| Part | Why | Approx Cost |
-|---|---|---|
-| Waveshare 2.1" Round LCD 480×480 | Upgrade from 1.28" for better face expressions | ~$20 |
-| Bidirectional Logic Level Shifter | 3.3V displays/mic with Pi GPIO | ~$3 |
-| Robot body shell | See HOUSING.md for options | $0–25 |
 
 ---
 
@@ -86,26 +93,37 @@ An AI-powered desktop companion robot. Small, cute, friendly. It sits on a desk,
 │     Raspberry Pi 5 8GB          │
 │  (in CanaKit case, on desk)     │
 │                                 │
-│  ┌─────────┐  ┌──────────────┐  │
-│  │  Python │  │  API Client  │  │
-│  │  Brain  │←→│  Anthropic   │  │
-│  └────┬────┘  └──────────────┘  │
-│       │                         │
+│  ┌──────────┐  ┌──────────────┐ │
+│  │ brain.py │←→│  Anthropic   │ │
+│  │          │  │  API (cloud) │ │
+│  └────┬─────┘  └──────────────┘ │
+│       │ face.py                 │
+│       │ EMOTION happy #00FF00\n │
 └───────┼─────────────────────────┘
-        │ GPIO / I²C / SPI / I²S cables
+        │ USB-C cable
+        │ /dev/ttyACM0 (Pi) ↔ native USB-OTG (ESP32)
+        │
+┌───────┴──────────────────────────────────────┐
+│  Waveshare ESP32-S3-Touch-LCD-2.1            │
+│                                              │
+│  ┌──────────────────────────────────────┐   │
+│  │  ESP32-S3 firmware (PlatformIO/C++)  │   │
+│  │  serial_parser → state machine       │   │
+│  │  → face_render → ST7701S 480×480 LCD │   │
+│  └──────────────────────────────────────┘   │
+│  (display, touch, I²C expander all internal) │
+└──────────────────────────────────────────────┘
+
+        (Stages 3–5 — not yet built)
+        │ GPIO / I²C / I²S cables
         │
 ┌───────┼──────────────────────────┐
 │  ROBOT BODY                      │
-│       │                          │
 │  ┌────┴──────────────────────┐   │
 │  │ PCA9685 (I²C)             │   │
 │  │  → SG90 pan servo         │   │
 │  │  → SG90 tilt servo        │   │
 │  │  → SG90 body wiggle       │   │
-│  └───────────────────────────┘   │
-│  ┌───────────────────────────┐   │
-│  │ Round Display (SPI)       │   │
-│  │  Waveshare 2.1" 480×480   │   │
 │  └───────────────────────────┘   │
 │  ┌───────────────────────────┐   │
 │  │ INMP441 Mic (I²S)         │   │
@@ -121,9 +139,31 @@ An AI-powered desktop companion robot. Small, cute, friendly. It sits on a desk,
 
 ---
 
+## Wire Protocol — Pi ↔ ESP32 (ASCII over USB serial @ 115200)
+
+**Pi → ESP32:**
+| Command | Effect |
+|---|---|
+| `EMOTION <name> <#RRGGBB>` | Set emotion + eye color. Name is one of: neutral, happy, excited, surprised, thinking, sad, sleepy |
+| `BLINK` | Trigger a single blink |
+| `RESET` | Return to neutral |
+| `PING` | Connectivity check |
+
+**ESP32 → Pi:**
+| Response | Meaning |
+|---|---|
+| `READY v<x.y>` | Sent on boot — firmware version |
+| `OK` | Command accepted |
+| `PONG` | Response to PING |
+| `LOG <text>` | Debug / error message |
+
+**Pi-side:** `face.py` wraps this in a `Face` class. `face.set_emotion(name, "#RRGGBB")` is the main call. If the serial port isn't present, Face runs in silent no-op mode — brain.py doesn't need to know or care.
+
+---
+
 ## AI Response Format — The Core Design Pattern
 
-Every call to the Anthropic API must request this JSON format. This single structure drives the face, voice, and movement simultaneously:
+Every call to the Anthropic API must request this JSON format:
 
 ```json
 {
@@ -134,196 +174,195 @@ Every call to the Anthropic API must request this JSON format. This single struc
 }
 ```
 
-The system prompt to send with every conversation:
-
-```
-You are a small, friendly desktop robot companion named [NAME TBD by user].
-You are witty, warm, curious, and occasionally playful. You live on the user's desk.
-You have a physical body with a round screen face, and you can move your head.
-
-Always respond ONLY as valid JSON with exactly these fields:
-{
-  "emotion": one of: happy, thinking, sad, excited, neutral, surprised, sleepy,
-  "speech": your spoken response (keep under 2 sentences for natural pacing),
-  "movement": one of: nod, shake, tilt_left, tilt_right, wiggle, idle,
-  "led_color": one of: warm_white, blue, red, purple, green, yellow
-}
-
-Emotion guide:
-- thinking: use while processing complex questions
-- excited: good news, interesting topics, greetings
-- happy: general positive responses
-- sad: bad news, apologies
-- surprised: unexpected information
-- sleepy: idle state, late night
-- neutral: factual responses
-
-Never break character. Never output anything outside the JSON object.
-```
+After parsing the response, `brain.py` calls `face.set_emotion(parsed['emotion'], config.LED_COLORS_HEX[parsed['led_color']])` to drive the face. The color name → hex mapping lives in `config.py`.
 
 ---
 
 ## Build Stages
 
-### Stage 1 — Brain Online ← CURRENT STAGE
+### Stage 1 — Brain Online ✅ DONE
 **Goal:** Pi talks to Anthropic API, returns structured JSON, prints to terminal.
 **Success criteria:** Run `python3 brain.py` and have a typed conversation that returns valid JSON responses.
-**No hardware needed** beyond the Pi itself.
 
-Files to build:
-- `src/config.py` — API keys, model settings
-- `src/brain.py` — Core conversation loop, API calls, JSON parsing
-- `src/test_brain.py` — Unit tests for the brain module
+Files:
+- `config.py` — API keys, model settings, color maps
+- `brain.py` — Core conversation loop, API calls, JSON parsing
 
-### Stage 2 — Face
+### Stage 2 — Face 🔄 ~95% Done
 **Goal:** Animated round display shows eyes that blink, change with emotion.
-**Hardware:** Waveshare 2.1" round display wired via SPI.
-**Success criteria:** Emotion variable changes → face visually changes expression.
+**Hardware:** Waveshare ESP32-S3-Touch-LCD-2.1 connected via USB-C.
+**Success criteria:** `EMOTION <name> <#RRGGBB>` → face visually changes expression + animates smoothly.
 
-Files to build:
-- `src/display.py` — Face rendering, animation loop
-- `assets/emotions/` — Emotion face definitions (eye shapes, colors)
+Design spec: `docs/superpowers/specs/2026-05-23-stage-2-face-design.md`
+Implementation plan: `docs/superpowers/plans/2026-05-23-stage-2-face.md`
 
-### Stage 3 — Voice
+**Remaining:**
+- Task 17: Pi-side READY-resync (auto-recover when ESP32 is unplugged and re-plugged)
+- Task 18: End-to-end integration test on Pi (brain.py + face.py together on real hardware)
+
+Files:
+- `face.py` — Pi-side serial wrapper (`Face` class)
+- `firmware/face/` — Full PlatformIO project (ESP32-S3, Arduino framework)
+  - `src/main.cpp` — Entry point, setup(), loop(), command dispatch
+  - `src/Display_ST7701.{h,cpp}` — Custom ST7701S driver (TCA9554-routed RST/CS, ESP-IDF rgb panel)
+  - `src/I2C_Driver.{h,cpp}` — Wire wrapper (SDA=15, SCL=7)
+  - `src/TCA9554PWR.{h,cpp}` — IO expander driver
+  - `src/emotions.h` — 7-emotion shape table (eye + eyebrow data)
+  - `src/state.{h,cpp}` — FaceState, animation interpolation, blink/glance/breathe/sleepy idle
+  - `src/face_render.{h,cpp}` — PSRAM framebuffer, drawing primitives
+  - `src/serial_parser.{h,cpp}` — Line-based ASCII command parser
+- `tests/test_face.py` — pytest suite for face.py (uses MockSerial)
+
+**Visual design:** Hybrid Cozmo/Eve aesthetic. Two glowing rounded-rectangle eyes that morph through size, border-radius, position, and tilt. Each eye has a vertical-ellipse pupil in a lighter shade of the eye color. Each emotion has its own eyebrow shape (rounded pill above each eye). All values interpolate smoothly during transitions (300ms shape, 400ms color cubic-ease).
+
+**Idle behaviors:**
+- Blink every 6–9s (200ms close-hold-open)
+- Glance every 8–15s: 3-phase (400ms rise → 2000ms hold → 400ms return) — moves pupils, not eyes
+- Constant subtle pupil drift (±5px sine, ~7s period) — never perfectly still
+- Breathe: ±5% size oscillation at 3s period, in IDLE_BREATHE and SLEEPY states
+- Sleepy decay triggers after 215s of no commands
+
+### Stage 3 — Voice ⬜ Pending
 **Goal:** Speak to it, it speaks back.
 **Hardware:** INMP441 mic (I²S), PCM5102 DAC, CQRobot speaker.
-**Pipeline:** Mic audio → speech-to-text (Whisper API or Google STT) → brain.py → TTS → speaker.
-**Success criteria:** Full spoken conversation end-to-end.
+**Pipeline:** Mic audio → speech-to-text → brain.py → TTS → speaker.
 
 Files to build:
-- `src/audio_input.py` — Mic capture, VAD (voice activity detection), STT
-- `src/audio_output.py` — TTS, audio playback via DAC
+- `audio_input.py` — Mic capture, VAD, STT
+- `audio_output.py` — TTS, audio playback via DAC
 
-### Stage 4 — Movement
-**Goal:** Servos respond to emotion and movement tags.
+### Stage 4 — Movement ⬜ Pending
+**Goal:** Servos respond to movement tags.
 **Hardware:** PCA9685 via I²C, 3x SG90 servos, XiaoR pan-tilt mount.
-**Success criteria:** "wiggle" tag → robot wiggles. "nod" tag → robot nods.
 
 Files to build:
-- `src/servos.py` — PCA9685 init, servo positions, movement sequences
-- `src/choreography.py` — Named movement routines (dance, idle, react)
+- `servos.py` — PCA9685 init, servo positions, movement sequences
+- `choreography.py` — Named movement routines
 
-### Stage 5 — Mood Lighting + Polish
+### Stage 5 — Mood Lighting + Polish ⬜ Pending
 **Goal:** LED strip color matches `led_color` tag. Wake word or touch-to-activate.
-**Hardware:** LED strip on GPIO PWM or via relay, touch sensor from 37-in-1 kit.
 
 Files to build:
-- `src/leds.py` — LED strip control
-- `src/wake.py` — Wake word or touch detection
-
-### Stage 6 (Future) — Vision
-**Goal:** Pi camera or USB webcam enables face tracking, presence detection.
-**Note:** The XiaoR pan-tilt webcam (not included with the bracket) plugs in here.
+- `leds.py` — LED strip control
+- `wake.py` — Wake word or touch detection
 
 ---
 
 ## GPIO Pin Assignments (Pi 5)
 
-```
-SPI (Display):
-  MOSI  → GPIO 10 (Pin 19)
-  MISO  → GPIO 9  (Pin 21)
-  SCLK  → GPIO 11 (Pin 23)
-  CS    → GPIO 8  (Pin 24)
-  DC    → GPIO 25 (Pin 22)
-  RST   → GPIO 27 (Pin 13)
-  BL    → GPIO 18 (Pin 12) [backlight PWM]
+**Note: The display is no longer Pi GPIO-driven.** The ESP32-S3 handles all display, touch, and I²C IO expander connections internally. The Pi's only connection to the face hardware is a single USB-C cable.
 
-I²S Microphone (INMP441):
-  SCK   → GPIO 18 (Pin 12) — NOTE: conflicts with BL if used simultaneously, resolve in wiring
+```
+USB-C (Face — ESP32-S3-Touch-LCD-2.1):
+  Use the USB port on the board (native USB-OTG, NOT the UART port).
+  Shows up as /dev/ttyACM0 on the Pi.
+
+I²S Microphone (INMP441) — Stage 3:
+  SCK   → GPIO 18 (Pin 12)
   WS    → GPIO 19 (Pin 35)
   SD    → GPIO 20 (Pin 38)
   L/R   → GND (left channel)
 
-I²S DAC (PCM5102):
+I²S DAC (PCM5102) — Stage 3:
   BCK   → GPIO 18 (Pin 12)
   LRCK  → GPIO 19 (Pin 35)
   DIN   → GPIO 21 (Pin 40)
+  NOTE: Mic and DAC share I²S pins — Pi 5 supports full-duplex I²S.
+  Configure as a single soundcard (resolve in Stage 3 before soldering).
 
-I²C (PCA9685 Servo Driver):
+I²C (PCA9685 Servo Driver) — Stage 4:
   SDA   → GPIO 2  (Pin 3)
   SCL   → GPIO 3  (Pin 5)
-
-NOTE: GPIO 18/19 conflict between mic and DAC is resolved by using
-separate I²S buses or time-multiplexing (only one active at a time).
-Resolve this properly in Stage 3 before soldering anything.
 ```
-
----
-
-## Code Style & Conventions
-
-- Language: **Python 3.11+**
-- Style: Clean, well-commented, modular. Each hardware system gets its own file.
-- Error handling: All hardware interactions wrapped in try/except with graceful fallback
-- Logging: Use Python `logging` module, not print statements (except during dev)
-- Config: All secrets and pin numbers in `src/config.py`, never hardcoded
-- No blocking calls on the main thread — use asyncio or threading for audio/display
 
 ---
 
 ## Project File Structure
 
 ```
-desk-companion-bot/
+Deskbot/
 ├── AGENTS.md              ← You are here. Read first.
-├── HARDWARE.md            ← Wiring diagrams and pin reference
+├── HARDWARE.md            ← Wiring diagrams and component reference
 ├── HOUSING.md             ← Robot body build options
 ├── README.md              ← Quick start
+├── brain.py               ← Core AI conversation loop
+├── config.py              ← API keys, GPIO pins, color maps (DO NOT COMMIT KEYS)
+├── face.py                ← Pi-side serial wrapper for ESP32 face
 ├── requirements.txt       ← Python dependencies
-├── src/
-│   ├── config.py          ← API keys, GPIO pins, settings (DO NOT COMMIT KEYS)
-│   ├── brain.py           ← Core AI conversation loop
-│   ├── display.py         ← Face rendering and animation
-│   ├── audio_input.py     ← Mic capture and speech-to-text
-│   ├── audio_output.py    ← Text-to-speech and playback
-│   ├── servos.py          ← PCA9685 and servo control
-│   ├── choreography.py    ← Named movement sequences
-│   ├── leds.py            ← LED strip control
-│   ├── wake.py            ← Wake word / touch detection
-│   └── main.py            ← Entry point — orchestrates all modules
-├── assets/
-│   └── emotions/          ← Face expression definitions
+├── setup.sh               ← One-shot Pi setup script
+├── .gitignore
+├── .gitattributes
+├── firmware/
+│   └── face/              ← PlatformIO project (ESP32-S3 face firmware)
+│       ├── platformio.ini
+│       ├── README.md
+│       └── src/
+│           ├── main.cpp
+│           ├── Display_ST7701.h / .cpp
+│           ├── I2C_Driver.h / .cpp
+│           ├── TCA9554PWR.h / .cpp
+│           ├── emotions.h
+│           ├── face_render.h / .cpp
+│           ├── state.h / .cpp
+│           └── serial_parser.h / .cpp
 ├── tests/
-│   ├── test_brain.py
-│   ├── test_display.py
-│   └── test_servos.py
-└── scripts/
-    ├── setup.sh           ← Installs all dependencies on Pi
-    └── test_hardware.py   ← Interactive hardware validation tool
+│   ├── __init__.py
+│   └── test_face.py
+└── docs/
+    └── superpowers/
+        ├── specs/2026-05-23-stage-2-face-design.md
+        └── plans/2026-05-23-stage-2-face.md
 ```
+
+---
+
+## Code Style & Conventions
+
+- **Pi side:** Python 3.11+. Clean, well-commented, modular. Each hardware system gets its own file.
+- **Firmware side:** Arduino/C++ via PlatformIO. Each subsystem gets its own .h/.cpp pair.
+- Error handling: All hardware interactions wrapped in try/except (Python) or null-check (C++) with graceful fallback
+- Logging: Python uses `logging` module, not print(). Firmware uses `Serial.println("LOG ...")`.
+- Config: All secrets and pin numbers in `config.py`, never hardcoded
+- No blocking calls on the main thread — use asyncio or threading for audio/display (Pi side)
 
 ---
 
 ## Current Status
 
-- [x] All hardware ordered and arriving
-- [x] CanaKit Pi 5 8GB in hand — **START HERE**
-- [ ] Pi OS flashed and booted
-- [ ] WiFi connected
-- [ ] Anthropic API key configured
-- [ ] Stage 1 complete
-- [ ] Remaining parts arriving (displays, servos, mic, speaker, etc.)
+- [x] All hardware ordered and in hand
+- [x] Pi OS flashed, booted, WiFi connected
+- [x] Anthropic API key configured
+- [x] Stage 1 complete — brain.py works, returns structured emotion JSON
+- [x] Stage 2 firmware complete — face animates beautifully on real hardware
+- [x] face.py Pi wrapper complete
+- [x] tests/test_face.py — 4 tests, all passing
+- [ ] Task 17: Pi-side READY-resync (ESP32 unplug/replug auto-recovery)
+- [ ] Task 18: End-to-end integration test on Pi
+- [ ] Stage 3: Voice (not started)
+- [ ] Stage 4: Movement (not started)
+- [ ] Stage 5: Polish/LEDs (not started)
 
 ---
 
 ## Important Decisions Already Made
 
-1. **Pi 5 8GB CanaKit** is the brain — do not suggest switching to Arduino/ESP32 as main brain
-2. **Waveshare 2.1" round display** is the target face screen (upgrading from 1.28" GC9A01)
-3. **XiaoR Geek pan-tilt kit** is the neck mechanism — SG90 compatible, pre-assembled
-4. **Robot body is physically separate** from Pi housing — connected by cables
-5. **Anthropic API** for intelligence — do not suggest local models for v1
-6. **JSON response format** (emotion + speech + movement + led_color) is locked in
-7. **Housing**: to be DIY prototyped first (PVC/containers/Dremel), then potentially 3D printed via service
-8. **No arms** — head movement (pan/tilt) + body wiggle is the target motion set for v1
+1. **Pi 5 8GB CanaKit** is the brain — do not suggest switching the main brain
+2. **Waveshare ESP32-S3-Touch-LCD-2.1** is the face — ESP32-S3 drives the display directly, Pi connects via USB only
+3. **Arduino-GFX 1.4.9** is the graphics library — pinned to 1.4.9 because the `espressif32` PlatformIO platform ships Arduino-ESP32 2.0.17, and Arduino-GFX 1.5+ (with `Arduino_ST7701S_RGBPanel`) requires 3.x. Do not suggest upgrading without addressing this dependency chain.
+4. **Custom display init** — standard graphics libraries (Arduino-GFX, LovyanGFX) don't drive the TCA9554 IO expander out of the box. Display init uses ESP-IDF's `esp_lcd_new_rgb_panel()` directly, adapted from https://gist.github.com/fallenartist/22d1d01e125afb02ae4ebdcdf02d1f80
+5. **XiaoR Geek pan-tilt kit** is the neck mechanism — SG90 compatible, pre-assembled (Stage 4)
+6. **Robot body is physically separate** from Pi housing — connected by cables
+7. **Anthropic API** for intelligence — do not suggest local models for v1
+8. **JSON response format** (emotion + speech + movement + led_color) is locked in
+9. **Housing**: to be DIY prototyped first (PVC/containers/Dremel), then potentially 3D printed via service
+10. **No arms** — head movement (pan/tilt) + body wiggle is the target motion set for v1
 
 ---
 
 ## Where To Start In A Fresh Session
 
 1. Read this entire file
-2. Check `src/config.py` for current state
-3. Ask the user: "Which stage are we working on?" if unclear
-4. If Stage 1: help write/run `src/brain.py` — get API talking first
+2. Check the Current Status section above
+3. If continuing Stage 2: see `docs/superpowers/plans/2026-05-23-stage-2-face.md` for task list — Tasks 17 and 18 remain
+4. If starting Stage 3+: ask the user which stage and review the hardware section first
 5. Never skip stages — each one must work before the next begins
