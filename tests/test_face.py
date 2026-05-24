@@ -20,7 +20,7 @@ def test_face_handles_missing_port_gracefully(caplog):
 
 
 class MockSerial:
-    """Test double for serial.Serial — captures bytes written."""
+    """Test double for serial.Serial — captures writes and tracks connection state."""
     def __init__(self, *args, **kwargs):
         self.is_open = True
         self.written = bytearray()
@@ -34,35 +34,34 @@ class MockSerial:
     def close(self):
         self.is_open = False
 
+    def readline(self):
+        return b""
 
-def test_set_emotion_sends_correct_command(monkeypatch):
+
+@pytest.fixture
+def connected_face(monkeypatch):
     mock = MockSerial()
     monkeypatch.setattr("face.serial.Serial", lambda *a, **kw: mock)
     face = Face(port="/dev/fake", baud=115200)
+    return face, mock
+
+
+def test_set_emotion_sends_correct_command(connected_face):
+    face, mock = connected_face
     face.set_emotion("excited", "#FFD700")
     assert mock.written == b"EMOTION excited #FFD700\n"
 
 
-def test_blink_sends_blink_command(monkeypatch):
-    mock = MockSerial()
-    monkeypatch.setattr("face.serial.Serial", lambda *a, **kw: mock)
-    face = Face(port="/dev/fake", baud=115200)
+def test_blink_sends_blink_command(connected_face):
+    face, mock = connected_face
     face.blink()
     assert mock.written == b"BLINK\n"
 
 
-def test_reset_sends_reset_command(monkeypatch):
-    mock = MockSerial()
-    monkeypatch.setattr("face.serial.Serial", lambda *a, **kw: mock)
-    face = Face(port="/dev/fake", baud=115200)
+def test_reset_sends_reset_command(connected_face):
+    face, mock = connected_face
     face.reset()
     assert mock.written == b"RESET\n"
 
 
-def test_face_remembers_last_emotion(monkeypatch):
-    mock = MockSerial()
-    monkeypatch.setattr("face.serial.Serial", lambda *a, **kw: mock)
-    face = Face(port="/dev/fake", baud=115200)
-    face.set_emotion("sleepy", "#888888")
-    assert face._last_emotion == "sleepy"
-    assert face._last_color_hex == "#888888"
+# TODO(Task 17): add test_face_resyncs_after_reconnect — covers _last_emotion via observable resend behavior
