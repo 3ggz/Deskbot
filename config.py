@@ -121,3 +121,13 @@ BLINK_INTERVAL_SEC = 3.0       # Default blink interval
 DEBUG_MODE         = True      # Set False for production
 LOG_LEVEL          = "DEBUG"   # DEBUG, INFO, WARNING, ERROR
 SKIP_HARDWARE      = False     # Set True to run brain only (no GPIO) on non-Pi machine
+
+# ─── Face Controller (ESP32-S3-Touch-LCD-2.1) ──────────────
+FACE_SERIAL_PORT = "/dev/ttyACM0"
+FACE_SERIAL_BAUD = 115200
+
+def _rgb_to_hex(rgb):
+    return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+# Derived from LED_COLORS above — sent to the face as part of EMOTION commands
+LED_COLORS_HEX = {name: _rgb_to_hex(rgb) for name, rgb in LED_COLORS.items()}
