@@ -21,3 +21,9 @@ echo "EMOTION happy #00FF00" > /dev/ttyACM0
 ```
 
 The eyes should change.
+
+## Library choice — LovyanGFX (not Arduino-GFX)
+
+We use **LovyanGFX** to drive the ST7701S 480×480 round panel. The original plan called for Arduino-GFX, but Arduino-GFX 1.5+ (which has `Arduino_ST7701S_RGBPanel`) requires Arduino-ESP32 3.x — and the `espressif32` PlatformIO platform ships Arduino-ESP32 2.0.17. LovyanGFX 1.2 has mature ST7701S RGB support and works on Arduino-ESP32 2.x, so it's the cleaner path.
+
+The drawing API (`fillRoundRect`, `fillScreen`, RGB565 colors) is nearly identical to Arduino-GFX, so code in later tasks adapts mechanically. The only major difference is the display init: LovyanGFX uses an `LGFX` subclass with `Bus_RGB`, `Panel_ST7701` and `Light_PWM` config structs instead of `Arduino_DataBus` + `Arduino_GFX`.
