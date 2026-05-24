@@ -21,7 +21,7 @@
 
 // Backlight
 #define PWM_Channel     1       // PWM Channel
-#define Frequency       20000   // PWM frequency
+#define Frequency       25000   // PWM frequency (25 kHz — above audible range to prevent coil whine)
 #define Resolution      10      // PWM resolution ratio     MAX:13
 #define Dutyfactor      500     // PWM Dutyfactor
 #define Backlight_MAX   100
