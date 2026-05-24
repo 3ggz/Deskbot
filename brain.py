@@ -10,6 +10,7 @@ import os
 import json
 import logging
 from anthropic import Anthropic
+from face import Face
 
 # ─── Setup ─────────────────────────────────────────────────
 logging.basicConfig(level=logging.DEBUG)
@@ -18,15 +19,19 @@ log = logging.getLogger(__name__)
 try:
     from config import (
         ANTHROPIC_API_KEY, AI_MODEL, AI_MAX_TOKENS,
-        AI_TEMPERATURE, BOT_NAME
+        AI_TEMPERATURE, BOT_NAME,
+        FACE_SERIAL_PORT, FACE_SERIAL_BAUD, LED_COLORS_HEX,
     )
 except ImportError:
     # Fallback defaults if run standalone
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-    AI_MODEL          = "claude-sonnet-4-5"
+    AI_MODEL          = "claude-haiku-4-5"
     AI_MAX_TOKENS     = 256
     AI_TEMPERATURE    = 0.8
     BOT_NAME          = "Pip"
+    FACE_SERIAL_PORT  = "/dev/ttyACM0"
+    FACE_SERIAL_BAUD  = 115200
+    LED_COLORS_HEX    = {"warm_white": "#FFDCB4"}
 
 # ─── System Prompt ─────────────────────────────────────────
 SYSTEM_PROMPT = f"""You are {BOT_NAME}, a small friendly desktop robot companion.
@@ -139,7 +144,9 @@ class Brain:
             )
         self.client = Anthropic(api_key=ANTHROPIC_API_KEY)
         self.history = []  # Conversation history for multi-turn context
-        log.info(f"Brain initialized. Model: {AI_MODEL}. Bot name: {BOT_NAME}")
+        self.face = Face(port=FACE_SERIAL_PORT, baud=FACE_SERIAL_BAUD)
+        log.info(f"Brain initialized. Model: {AI_MODEL}. Bot name: {BOT_NAME}. "
+                 f"Face: {'connected' if self.face.is_connected() else 'offline'}")
 
     def think(self, user_input: str) -> dict:
         """
@@ -180,6 +187,9 @@ class Brain:
                 self.history = self.history[-40:]
 
             log.info(f"Emotion: {parsed['emotion']} | Speech: {parsed['speech']}")
+            # Push emotion to the face controller
+            color_hex = LED_COLORS_HEX.get(parsed["led_color"], LED_COLORS_HEX.get("warm_white", "#FFDCB4"))
+            self.face.set_emotion(parsed["emotion"], color_hex)
             return parsed
 
         except Exception as e:
@@ -220,6 +230,7 @@ def terminal_chat():
                 continue
             if user_input.lower() == "quit":
                 print("Shutting down...")
+                brain.face.close()
                 break
             if user_input.lower() == "clear":
                 brain.clear_history()
@@ -233,6 +244,7 @@ def terminal_chat():
 
         except KeyboardInterrupt:
             print("\nShutting down...")
+            brain.face.close()
             break
 
 
