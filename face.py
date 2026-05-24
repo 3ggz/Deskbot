@@ -31,9 +31,9 @@ class Face:
         return self._serial is not None and self._serial.is_open
 
     def _send_line(self, line: str) -> None:
-        if not self.is_connected():
-            return
         with self._lock:
+            if not self.is_connected():
+                return
             try:
                 self._serial.write(f"{line}\n".encode("ascii"))
                 self._serial.flush()
@@ -54,6 +54,7 @@ class Face:
         self._send_line("RESET")
 
     def close(self) -> None:
-        if self._serial is not None and self._serial.is_open:
-            self._serial.close()
-            log.info("Face serial port closed")
+        with self._lock:
+            if self._serial is not None and self._serial.is_open:
+                self._serial.close()
+                log.info("Face serial port closed")
