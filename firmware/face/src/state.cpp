@@ -6,7 +6,10 @@ static const uint32_t SHAPE_TRANSITION_MS = 300;
 static const uint32_t COLOR_TRANSITION_MS = 400;
 static const uint32_t BLINK_DURATION_MS   = 200;   // close 80 + hold 40 + open 80
 static const int16_t  BLINK_MIN_HEIGHT    = 10;
-static const uint32_t GLANCE_DURATION_MS  = 1100;
+static const uint32_t GLANCE_RISE_MS    = 400;
+static const uint32_t GLANCE_HOLD_MS    = 2000;
+static const uint32_t GLANCE_RETURN_MS  = 400;
+static const uint32_t GLANCE_DURATION_MS = GLANCE_RISE_MS + GLANCE_HOLD_MS + GLANCE_RETURN_MS;  // 2800
 static const int8_t   GLANCE_MAX_OFFSET   = 20;
 static const float    BREATHE_AMP         = 0.05f;
 static const float    BREATHE_PERIOD_MS   = 3000.0f;
@@ -26,15 +29,25 @@ float ease_cubic(float t) {
 int state_current_pupil_offset(const FaceState &s, uint32_t now_ms) {
     int offset = 0;
 
-    // Smooth glance contribution: bell curve via ease_cubic on out-and-back time.
+    // 3-phase glance: rise → hold → return. Each segment uses cubic easing
+    // for the rise and return; hold stays at the peak.
     if (now_ms < s.glance_end_ms && s.glance_x_offset != 0) {
         uint32_t glance_start = s.glance_end_ms - GLANCE_DURATION_MS;
         if (now_ms >= glance_start) {
-            float t = (float)(now_ms - glance_start) / (float)GLANCE_DURATION_MS;
-            float bell;
-            if (t < 0.5f) bell = ease_cubic(t * 2.0f);
-            else          bell = ease_cubic((1.0f - t) * 2.0f);
-            offset += (int)(s.glance_x_offset * bell);
+            uint32_t elapsed = now_ms - glance_start;
+            float fraction;
+            if (elapsed < GLANCE_RISE_MS) {
+                // Rise phase: 0 → 1.
+                fraction = ease_cubic((float)elapsed / (float)GLANCE_RISE_MS);
+            } else if (elapsed < GLANCE_RISE_MS + GLANCE_HOLD_MS) {
+                // Hold phase: stay at 1.
+                fraction = 1.0f;
+            } else {
+                // Return phase: 1 → 0.
+                uint32_t t_ms = elapsed - (GLANCE_RISE_MS + GLANCE_HOLD_MS);
+                fraction = 1.0f - ease_cubic((float)t_ms / (float)GLANCE_RETURN_MS);
+            }
+            offset += (int)(s.glance_x_offset * fraction);
         }
     }
 
