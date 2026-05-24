@@ -80,6 +80,11 @@ static EyeShape lerp_shape(const EyeShape &a, const EyeShape &b, float t) {
     r.y_offset   = lerp_i16(a.y_offset, b.y_offset, t);
     r.tilt_left  = lerp_i8(a.tilt_left,  b.tilt_left,  t);
     r.tilt_right = lerp_i8(a.tilt_right, b.tilt_right, t);
+    // Brow
+    r.brow_width    = lerp_i16(a.brow_width,    b.brow_width,    t);
+    r.brow_height   = lerp_i16(a.brow_height,   b.brow_height,   t);
+    r.brow_y_offset = lerp_i16(a.brow_y_offset, b.brow_y_offset, t);
+    r.brow_tilt     = lerp_i8(a.brow_tilt,      b.brow_tilt,     t);
     return r;
 }
 

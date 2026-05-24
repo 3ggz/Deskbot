@@ -196,6 +196,19 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
         int py = cy - (max_shift_y / 4);
 
         fb_fill_ellipse(px, py, pupil_rx, pupil_ry, pupil_color);
+
+        // 6. Eyebrow — small rounded rect above the eye, optionally tilted.
+        if (s.brow_width >= 6 && s.brow_height >= 3) {
+            int bx = cx;
+            int by = cy + s.brow_y_offset;
+            int br = s.brow_height / 2;  // fully-rounded ends (pill shape)
+            if (s.brow_tilt != 0) {
+                fb_fill_round_rect_tilted(bx, by, s.brow_width, s.brow_height, br, (float)s.brow_tilt, color);
+            } else {
+                fb_fill_round_rect(bx - s.brow_width / 2, by - s.brow_height / 2,
+                                   s.brow_width, s.brow_height, br, color);
+            }
+        }
     };
 
     draw_eye(p.left,  p.left.tilt_left,   glance_x_offset);
