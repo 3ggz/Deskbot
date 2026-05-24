@@ -170,7 +170,7 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
         //    affect the pupil too. Vertical ellipse: roughly 1/3 the eye width
         //    by 1/2 the eye height as a baseline.
         int pupil_rx = s.width  / 6;
-        int pupil_ry = s.height / 4;
+        int pupil_ry = s.height / 6;
 
         // Keep the pupil safely inside the eye even when it's small.
         int max_pupil_rx = (s.width  / 2) - 4;
