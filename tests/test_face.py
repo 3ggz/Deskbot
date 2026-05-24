@@ -64,4 +64,39 @@ def test_reset_sends_reset_command(connected_face):
     assert mock.written == b"RESET\n"
 
 
-# TODO(Task 17): add test_face_resyncs_after_reconnect — covers _last_emotion via observable resend behavior
+import time
+
+
+class ReadableMockSerial(MockSerial):
+    """MockSerial that also lets us inject bytes for the Pi to read."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._read_buffer = bytearray()
+        self.in_waiting = 0
+
+    def inject(self, data: bytes):
+        self._read_buffer.extend(data)
+        self.in_waiting = len(self._read_buffer)
+
+    def readline(self):
+        nl = self._read_buffer.find(b"\n")
+        if nl < 0:
+            return b""
+        line = bytes(self._read_buffer[: nl + 1])
+        del self._read_buffer[: nl + 1]
+        self.in_waiting = len(self._read_buffer)
+        return line
+
+
+def test_face_resyncs_last_emotion_on_ready(monkeypatch):
+    mock = ReadableMockSerial()
+    monkeypatch.setattr("face.serial.Serial", lambda *a, **kw: mock)
+    face = Face(port="/dev/fake", baud=115200)
+    face.set_emotion("excited", "#FFD700")
+    mock.written.clear()  # clear what we sent so far
+    # Simulate the ESP32 booting and sending READY
+    mock.inject(b"READY v1.0\n")
+    # Give the reader thread time to process
+    time.sleep(0.2)
+    face.close()
+    assert mock.written == b"EMOTION excited #FFD700\n"

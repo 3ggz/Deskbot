@@ -20,9 +20,14 @@ class Face:
         self._lock = threading.Lock()
         self._last_emotion = None
         self._last_color_hex = None
+        self._reader_stop = None
+        self._reader_thread = None
         try:
             self._serial = serial.Serial(port=port, baudrate=baud, timeout=timeout)
             log.info(f"Face connected on {port} @ {baud}")
+            self._reader_stop = threading.Event()
+            self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+            self._reader_thread.start()
         except (serial.SerialException, FileNotFoundError, OSError) as e:
             log.warning(f"Face not connected ({port}): {e}. Running in offline mode.")
             self._serial = None
@@ -53,7 +58,33 @@ class Face:
     def reset(self) -> None:
         self._send_line("RESET")
 
+    def _reader_loop(self):
+        while self._reader_stop is not None and not self._reader_stop.is_set():
+            try:
+                line = self._serial.readline()
+            except (serial.SerialException, OSError):
+                break
+            if not line:
+                continue
+            decoded = line.decode("ascii", errors="replace").strip()
+            if not decoded:
+                continue
+            if decoded.startswith("READY"):
+                log.info(f"Face says: {decoded}")
+                if self._last_emotion and self._last_color_hex:
+                    self._send_line(f"EMOTION {self._last_emotion} {self._last_color_hex}")
+                else:
+                    self._send_line("RESET")
+            elif decoded.startswith("LOG"):
+                log.info(f"Face: {decoded}")
+            elif decoded == "OK" or decoded == "PONG":
+                pass
+            else:
+                log.debug(f"Face: {decoded}")
+
     def close(self) -> None:
+        if self._reader_stop is not None:
+            self._reader_stop.set()
         with self._lock:
             if self._serial is not None and self._serial.is_open:
                 self._serial.close()
