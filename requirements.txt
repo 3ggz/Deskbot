@@ -1,0 +1,13 @@
+anthropic>=0.25.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+pillow>=10.0.0
+RPi.GPIO>=0.7.1
+adafruit-circuitpython-pca9685>=2.4.0
+adafruit-circuitpython-motor>=3.4.0
+adafruit-blinka>=8.0.0
+spidev>=3.6
+pyaudio>=0.2.13
+pyttsx3>=2.90
+openai>=1.0.0
+python-dotenv>=1.0.0
