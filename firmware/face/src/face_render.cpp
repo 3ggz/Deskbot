@@ -165,20 +165,24 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
             fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
         }
 
-        // 2. Skip pupil when eye is collapsed (blink, sleepy).
-        if (s.height < 28) return;
+        // 2. Pupil dimensions scale with the CURRENT eye dimensions, so blinking
+        //    (height collapses) and breathing (subtle ±5% oscillation) naturally
+        //    affect the pupil too. Vertical ellipse: roughly 1/3 the eye width
+        //    by 1/2 the eye height as a baseline.
+        int pupil_rx = s.width  / 6;
+        int pupil_ry = s.height / 4;
 
-        // 3. Pupil dimensions: vertical ellipse. Half-height = 2× half-width.
-        int pupil_rx = s.width / 6;
-        if (pupil_rx < 8)  pupil_rx = 8;
-        if (pupil_rx > 20) pupil_rx = 20;
-        int pupil_ry = pupil_rx * 2;
-        // Clamp height to fit inside the eye.
-        int max_pupil_ry = (s.height / 2) - 6;
-        if (max_pupil_ry < 6) return;  // eye too short for a tall pupil; skip
+        // Keep the pupil safely inside the eye even when it's small.
+        int max_pupil_rx = (s.width  / 2) - 4;
+        int max_pupil_ry = (s.height / 2) - 4;
+        if (pupil_rx > max_pupil_rx) pupil_rx = max_pupil_rx;
         if (pupil_ry > max_pupil_ry) pupil_ry = max_pupil_ry;
 
-        // 4. Clamp pupil position so it stays inside the eye even at peak gaze.
+        // If the eye is too thin or too short for a visible pupil, skip it
+        // (clean blink — eye becomes a slit with no floating pupil).
+        if (pupil_rx < 3 || pupil_ry < 3) return;
+
+        // 3. Clamp pupil position so it stays inside the eye even at peak gaze.
         int max_shift_x = (s.width  / 2) - pupil_rx - 4;
         if (max_shift_x < 0) max_shift_x = 0;
         int max_shift_y = (s.height / 2) - pupil_ry - 4;
