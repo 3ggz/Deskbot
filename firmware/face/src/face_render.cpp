@@ -37,14 +37,14 @@ void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color) 
 
     const int r2 = radius * radius;
     for (int row = 0; row < h; ++row) {
-        // Vertical distance from the corner-arc origin (only matters near top/bottom).
+        // Vertical distance from the arc origin (matters only in the corner zones).
         int dy = 0;
-        if      (row < radius)      dy = radius - 1 - row;
-        else if (row >= h - radius) dy = row - (h - radius);
+        if      (row < radius)      dy = radius - row;
+        else if (row >= h - radius) dy = row - (h - radius) + 1;
         for (int col = 0; col < w; ++col) {
             int dx = 0;
-            if      (col < radius)      dx = radius - 1 - col;
-            else if (col >= w - radius) dx = col - (w - radius);
+            if      (col < radius)      dx = radius - col;
+            else if (col >= w - radius) dx = col - (w - radius) + 1;
             // Only check distance if we're actually in a corner cell.
             bool in_corner = (dy != 0 && dx != 0);
             if (!in_corner || dx * dx + dy * dy <= r2) {
