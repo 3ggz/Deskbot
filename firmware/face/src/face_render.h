@@ -16,6 +16,9 @@ bool face_render_init();
 // Draw a static face for the given emotion. Pushes the result to the LCD.
 void face_render_emotion(EmotionId id, uint16_t color);
 
+// Draw a face from an interpolated EyePair + color. Pushes the result to the LCD.
+void face_render_state(const struct EyePair &pair, uint16_t color);
+
 // Low-level helpers — exposed for later tasks (interpolation, blink, etc).
 void fb_fill(uint16_t color);
 void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color);

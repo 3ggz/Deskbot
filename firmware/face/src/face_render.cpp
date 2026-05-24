@@ -60,6 +60,22 @@ void fb_push_to_lcd() {
     LCD_addWindow(0, 0, FACE_WIDTH - 1, FACE_HEIGHT - 1, (uint8_t *)g_fb);
 }
 
+void face_render_state(const EyePair &p, uint16_t color) {
+    if (!g_fb) return;
+    fb_fill(0x0000);
+
+    auto draw = [&](const EyeShape &s) {
+        int x = (FACE_WIDTH  / 2) + s.x_offset - s.width  / 2;
+        int y = (FACE_HEIGHT / 2) + s.y_offset - s.height / 2;
+        int r = max(max(s.radius_tl, s.radius_tr), max(s.radius_bl, s.radius_br));
+        fb_fill_round_rect(x, y, s.width, s.height, r, color);
+    };
+
+    draw(p.left);
+    draw(p.right);
+    fb_push_to_lcd();
+}
+
 void face_render_emotion(EmotionId id, uint16_t color) {
     if (!g_fb) return;
     fb_fill(0x0000);  // black background

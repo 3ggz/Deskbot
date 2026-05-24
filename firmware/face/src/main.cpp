@@ -1,5 +1,5 @@
 // firmware/face/src/main.cpp
-// Pip — serial-driven emotion dispatch.
+// Pip — emotion+color with smooth animated transitions.
 #include <Arduino.h>
 #include "Display_ST7701.h"
 #include "I2C_Driver.h"
@@ -7,11 +7,10 @@
 #include "emotions.h"
 #include "face_render.h"
 #include "serial_parser.h"
+#include "state.h"
 
-static uint16_t g_eye_color = 0x4DDF;
-static EmotionId g_emotion = EMO_NEUTRAL;
+static FaceState g_state;
 
-// Convert "#RRGGBB" to RGB565. Returns false if input is malformed.
 static bool hex_to_rgb565(const char *hex, uint16_t &out) {
     if (!hex || hex[0] != '#') return false;
     long v = strtol(hex + 1, nullptr, 16);
@@ -22,12 +21,7 @@ static bool hex_to_rgb565(const char *hex, uint16_t &out) {
     return true;
 }
 
-static void render_current() {
-    face_render_emotion(g_emotion, g_eye_color);
-}
-
 static void handle_command(const char *line) {
-    // EMOTION <name> <#RRGGBB>
     if (strncmp(line, "EMOTION ", 8) == 0) {
         char name[16] = {0};
         char hex[8]  = {0};
@@ -35,9 +29,7 @@ static void handle_command(const char *line) {
             int eid = emotion_id_from_name(name);
             uint16_t color;
             if (eid >= 0 && hex_to_rgb565(hex, color)) {
-                g_emotion = (EmotionId)eid;
-                g_eye_color = color;
-                render_current();
+                state_set_target_emotion(g_state, (EmotionId)eid, color, millis());
                 Serial.println("OK");
                 return;
             }
@@ -45,14 +37,12 @@ static void handle_command(const char *line) {
         Serial.print("LOG bad_emotion: ");
         Serial.println(line);
     } else if (strcmp(line, "RESET") == 0) {
-        g_emotion = EMO_NEUTRAL;
-        g_eye_color = 0x4DDF;
-        render_current();
+        state_set_target_emotion(g_state, EMO_NEUTRAL, 0x4DDF, millis());
         Serial.println("OK");
     } else if (strcmp(line, "PING") == 0) {
         Serial.println("PONG");
     } else if (strcmp(line, "BLINK") == 0) {
-        // Animation comes in Task 14 — for now just acknowledge.
+        // Animation in Task 14
         Serial.println("OK");
     } else {
         Serial.print("LOG bad_cmd: ");
@@ -69,17 +59,17 @@ void setup() {
     LCD_Init();
     Set_Backlight(50);
 
-    if (face_render_init()) {
-        render_current();
-    } else {
+    if (!face_render_init()) {
         Serial.println("LOG face_render_init failed");
     }
-
+    state_init(g_state);
     parser_setup(handle_command);
-    Serial.println("READY v0.3");
+    Serial.println("READY v0.4");
 }
 
 void loop() {
     parser_poll();
-    delay(5);
+    state_update_animation(g_state, millis());
+    face_render_state(g_state.current, g_state.current_color);
+    delay(33);  // ~30 FPS
 }
