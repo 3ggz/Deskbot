@@ -59,12 +59,15 @@ static void handle_command(const char *line) {
         return;
     } else if (strncmp(line, "SERVO ", 6) == 0) {
         const char *act = line + 6;
-        if      (strcmp(act, "nod") == 0)         servo_nod();
-        else if (strcmp(act, "shake") == 0)       servo_shake();
-        else if (strcmp(act, "tilt_left") == 0)   servo_tilt_left();
-        else if (strcmp(act, "tilt_right") == 0)  servo_tilt_right();
-        else if (strcmp(act, "wiggle") == 0)      servo_wiggle();
-        else if (strcmp(act, "idle") == 0)        servo_idle();
+        if      (strcmp(act, "nod") == 0)          servo_nod();
+        else if (strcmp(act, "shake") == 0)        servo_shake();
+        else if (strcmp(act, "tilt_left") == 0)    servo_tilt_left();
+        else if (strcmp(act, "tilt_right") == 0)   servo_tilt_right();
+        else if (strcmp(act, "wiggle") == 0)       servo_wiggle();
+        else if (strcmp(act, "idle") == 0)         servo_idle();
+        else if (strcmp(act, "dance") == 0)        servo_dance();
+        else if (strcmp(act, "look_around") == 0)  servo_look_around();
+        else if (strcmp(act, "bow") == 0)          servo_bow();
         else {
             Serial.print("LOG bad_servo: ");
             Serial.println(act);
@@ -164,7 +167,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v2.0");
+    Serial.println("READY v2.1");
 }
 
 void loop() {

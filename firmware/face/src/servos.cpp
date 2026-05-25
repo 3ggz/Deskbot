@@ -54,7 +54,7 @@ static const uint32_t AMBIENT_IDLE_THRESHOLD_MS = 30000;  // start drifting afte
 
 // Movement scripts.
 struct Step { int pan, tilt, hold_ms; };
-static const int MAX_STEPS = 12;
+static const int MAX_STEPS = 16;
 static Step      script[MAX_STEPS];
 static int       script_len = 0;
 static int       script_idx = 0;
@@ -167,30 +167,29 @@ static void start_script(const Step *steps, int n, uint32_t now_ms) {
 }
 
 void servo_nod() {
-    // YES — slow weighty agreement. Pure vertical, no pan.
-    // Larger dip down, smaller look up, gentle return.
+    // Weighty yes — vertical dip with a tiny side lean for personality.
     Step s[] = {
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG + 18, 700},  // gentle, weighty dip
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG - 6,  600},  // soft look up
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG,      550},  // settle center
+        {SERVO_CENTER_DEG + 3,  SERVO_CENTER_DEG + 18, 600},  // dip with slight right lean
+        {SERVO_CENTER_DEG - 3,  SERVO_CENTER_DEG - 6,  500},  // pop up with opposite lean
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      450},  // settle center
     };
     start_script(s, 3, millis());
 }
 
 void servo_shake() {
-    // NO — decisive horizontal sweeps. Larger first sweep, smaller after.
+    // Decisive no — pan sweeps with tiny tilt counter-motion.
     Step s[] = {
-        {SERVO_CENTER_DEG - 25, SERVO_CENTER_DEG, 400},
-        {SERVO_CENTER_DEG + 25, SERVO_CENTER_DEG, 400},
-        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG, 350},
-        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG, 350},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG - 25, SERVO_CENTER_DEG + 3, 400},
+        {SERVO_CENTER_DEG + 25, SERVO_CENTER_DEG - 3, 400},
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG + 2, 350},
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG - 2, 350},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,     500},
     };
     start_script(s, 5, millis());
 }
 
 void servo_tilt_left() {
-    // Curious / quizzical — slow lean left, slight downward tilt for "concentrating".
+    // Curious lean — pan left + slight tilt down (concentrating).
     Step s[] = {
         {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG + 6, 850},
         {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,    700},
@@ -199,7 +198,6 @@ void servo_tilt_left() {
 }
 
 void servo_tilt_right() {
-    // Curious / quizzical right — mirror of tilt_left.
     Step s[] = {
         {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG + 6, 850},
         {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,    700},
@@ -208,16 +206,65 @@ void servo_tilt_right() {
 }
 
 void servo_wiggle() {
-    // PLAYFUL — fast small oscillations, distinctly bouncy.
+    // Playful bouncy — pan alternation with tilt sway, gives diagonal-vibe motion.
     Step s[] = {
-        {SERVO_CENTER_DEG - 14, SERVO_CENTER_DEG, 220},
-        {SERVO_CENTER_DEG + 14, SERVO_CENTER_DEG, 220},
-        {SERVO_CENTER_DEG - 14, SERVO_CENTER_DEG, 220},
-        {SERVO_CENTER_DEG + 14, SERVO_CENTER_DEG, 220},
-        {SERVO_CENTER_DEG - 10, SERVO_CENTER_DEG, 220},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 350},
+        {SERVO_CENTER_DEG - 14, SERVO_CENTER_DEG - 5, 220},
+        {SERVO_CENTER_DEG + 14, SERVO_CENTER_DEG + 5, 220},
+        {SERVO_CENTER_DEG - 14, SERVO_CENTER_DEG - 5, 220},
+        {SERVO_CENTER_DEG + 14, SERVO_CENTER_DEG + 5, 220},
+        {SERVO_CENTER_DEG - 8,  SERVO_CENTER_DEG,     200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,     350},
     };
     start_script(s, 6, millis());
+}
+
+void servo_dance() {
+    // 16-step DANCE. Diagonal bounces → quick wiggle middle → circular flourish.
+    Step s[] = {
+        // Opening diagonal bounces (4 corners of a square)
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG - 8, 250},   // up-right
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG + 6, 240},   // down-right
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG + 6, 280},   // sweep to down-left
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG - 8, 240},   // up-left
+        // Quick wiggle finish-pop
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG,     180},
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG,     180},
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG,     180},
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG,     180},
+        // Circular flourish (clockwise from up)
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 10, 250},  // up
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG - 5,  220},  // up-right
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG + 4,  220},  // right
+        {SERVO_CENTER_DEG + 8,  SERVO_CENTER_DEG + 10, 220},  // down-right
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 10, 220},  // down
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG + 4,  220},  // down-left
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG - 5,  220},  // left
+        // Finale: center
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      400},
+    };
+    start_script(s, 16, millis());
+}
+
+void servo_look_around() {
+    // Slow contemplative scan: up-left → up-right → down-right → down-left → center.
+    Step s[] = {
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG - 6, 850},   // up-left
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG - 6, 1000},  // sweep to up-right
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG + 8,  700},  // down-right
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG + 8, 1000},  // sweep to down-left
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      700},  // center
+    };
+    start_script(s, 5, millis());
+}
+
+void servo_bow() {
+    // Gracious bow: deep tilt-down + hold + return.
+    Step s[] = {
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG + 25, 800},   // bow down (slow)
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG + 25, 700},   // hold (same target = stay)
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG,      800},   // return up
+    };
+    start_script(s, 3, millis());
 }
 
 void servo_idle() {

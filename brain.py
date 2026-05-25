@@ -121,7 +121,7 @@ Required format:
 {{
   "emotion": "happy|thinking|sad|excited|neutral|surprised|sleepy|angry|love|confused|embarrassed|wink",
   "speech": "Your spoken response here (1-2 sentences max)",
-  "movement": "nod|shake|tilt_left|tilt_right|wiggle|idle",
+  "movement": "nod|shake|tilt_left|tilt_right|wiggle|idle|dance|look_around|bow",
   "led_color": "warm_white|blue|red|purple|green|yellow"
 }}
 
@@ -141,10 +141,13 @@ Emotion guide:
 
 Movement guide:
 - nod: agreement, greeting, happy affirmation
-- shake: disagreement, confusion
+- shake: disagreement, "no", confusion
 - tilt_left: thinking, curious
 - tilt_right: surprised, playful
-- wiggle: excited, dancing, celebration
+- wiggle: a little excitement, mild celebration
+- dance: BIG energy — wins, hype, "let's gooo", love, congratulations (use sparingly for impact!)
+- look_around: contemplative, scanning, "let me think..."
+- bow: gracious, polite, "you're welcome", "at your service"
 - idle: neutral, no movement
 
 LED color guide:
@@ -213,7 +216,8 @@ def validate_response(data: dict) -> dict:
     """Ensure all required fields exist with valid values."""
     valid_emotions  = {"happy", "thinking", "sad", "excited", "neutral", "surprised", "sleepy",
                        "angry", "love", "confused", "embarrassed", "wink"}
-    valid_movements = {"nod", "shake", "tilt_left", "tilt_right", "wiggle", "idle"}
+    valid_movements = {"nod", "shake", "tilt_left", "tilt_right", "wiggle", "idle",
+                       "dance", "look_around", "bow"}
     valid_colors    = {"warm_white", "blue", "red", "purple", "green", "yellow"}
 
     result = DEFAULT_RESPONSE.copy()
