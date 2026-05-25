@@ -24,7 +24,7 @@ static int tilt_min_deg = 60;
 static int tilt_max_deg = 120;
 
 // Default transition for explicit PAN/TILT commands.
-static const uint32_t DEFAULT_TRANSITION_MS = 400;
+static const uint32_t DEFAULT_TRANSITION_MS = 700;
 
 static Servo pan_servo;
 static Servo tilt_servo;
@@ -145,55 +145,58 @@ static void start_script(const Step *steps, int n, uint32_t now_ms) {
 }
 
 void servo_nod() {
+    // Small head dip then back — center ±12° tilt, slow and gentle.
     Step s[] = {
-        {SERVO_CENTER_DEG, tilt_max_deg, 350},
-        {SERVO_CENTER_DEG, tilt_min_deg, 350},
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 300},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG + 12, 600},  // small dip down
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG - 8,  600},  // gentle look up
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG,      500},  // return to center
     };
     start_script(s, 3, millis());
 }
 
 void servo_shake() {
+    // Small "no" — pan ±20° from center, three oscillations, mellow pace.
     Step s[] = {
-        {pan_min_deg, SERVO_CENTER_DEG, 300},
-        {pan_max_deg, SERVO_CENTER_DEG, 300},
-        {pan_min_deg, SERVO_CENTER_DEG, 300},
-        {pan_max_deg, SERVO_CENTER_DEG, 300},
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 300},
+        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 500},
     };
     start_script(s, 5, millis());
 }
 
 void servo_tilt_left() {
     Step s[] = {
-        {SERVO_CENTER_DEG - 30, SERVO_CENTER_DEG, 500},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 400},
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG, 700},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 600},
     };
     start_script(s, 2, millis());
 }
 
 void servo_tilt_right() {
     Step s[] = {
-        {SERVO_CENTER_DEG + 30, SERVO_CENTER_DEG, 500},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 400},
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG, 700},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 600},
     };
     start_script(s, 2, millis());
 }
 
 void servo_wiggle() {
+    // Slower wiggle, smaller amplitude — less likely to topple.
     Step s[] = {
-        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 200},
-        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 200},
-        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 200},
-        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 200},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 250},
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG, 350},
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG, 350},
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG, 350},
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG, 350},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 400},
     };
     start_script(s, 5, millis());
 }
 
 void servo_idle() {
     Step s[] = {
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 400},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 600},
     };
     start_script(s, 1, millis());
 }
