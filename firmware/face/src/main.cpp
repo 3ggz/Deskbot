@@ -64,6 +64,53 @@ static void handle_command(const char *line) {
         Serial.println();
         Serial.println("OK");
         return;
+    } else if (strncmp(line, "PAN ", 4) == 0) {
+        int deg = atoi(line + 4);
+        servo_pan_to(deg);
+        Serial.print("LOG pan target="); Serial.println(deg);
+        Serial.println("OK");
+        return;
+    } else if (strncmp(line, "TILT ", 5) == 0) {
+        int deg = atoi(line + 5);
+        servo_tilt_to(deg);
+        Serial.print("LOG tilt target="); Serial.println(deg);
+        Serial.println("OK");
+        return;
+    } else if (strncmp(line, "SERVO_LIMITS ", 13) == 0) {
+        int pmin, pmax, tmin, tmax;
+        if (sscanf(line + 13, "%d %d %d %d", &pmin, &pmax, &tmin, &tmax) == 4) {
+            servo_set_limits(pmin, pmax, tmin, tmax);
+            Serial.print("LOG limits pan=["); Serial.print(servo_get_pan_min());
+            Serial.print(","); Serial.print(servo_get_pan_max());
+            Serial.print("] tilt=["); Serial.print(servo_get_tilt_min());
+            Serial.print(","); Serial.print(servo_get_tilt_max()); Serial.println("]");
+            Serial.println("OK");
+        } else {
+            Serial.println("LOG bad_args: SERVO_LIMITS needs 4 ints");
+        }
+        return;
+    } else if (strncmp(line, "SERVO_TRIM ", 11) == 0) {
+        int ptrim, ttrim;
+        if (sscanf(line + 11, "%d %d", &ptrim, &ttrim) == 2) {
+            servo_set_trim(ptrim, ttrim);
+            Serial.print("LOG trim pan="); Serial.print(servo_get_pan_trim());
+            Serial.print(" tilt="); Serial.println(servo_get_tilt_trim());
+            Serial.println("OK");
+        } else {
+            Serial.println("LOG bad_args: SERVO_TRIM needs 2 ints");
+        }
+        return;
+    } else if (strcmp(line, "SERVO_INFO") == 0) {
+        Serial.print("LOG pan now="); Serial.print(servo_pan_current());
+        Serial.print(" limits=["); Serial.print(servo_get_pan_min());
+        Serial.print(","); Serial.print(servo_get_pan_max());
+        Serial.print("] trim="); Serial.println(servo_get_pan_trim());
+        Serial.print("LOG tilt now="); Serial.print(servo_tilt_current());
+        Serial.print(" limits=["); Serial.print(servo_get_tilt_min());
+        Serial.print(","); Serial.print(servo_get_tilt_max());
+        Serial.print("] trim="); Serial.println(servo_get_tilt_trim());
+        Serial.println("OK");
+        return;
     } else if (strcmp(line, "SERVO_TEST_HIGH") == 0) {
         pinMode(43, OUTPUT); digitalWrite(43, HIGH);
         pinMode(44, OUTPUT); digitalWrite(44, HIGH);
@@ -103,7 +150,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v1.0");
+    Serial.println("READY v1.1");
 }
 
 void loop() {

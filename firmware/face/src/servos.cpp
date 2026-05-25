@@ -11,15 +11,15 @@ static const int SERVO_MIN_US = 500;    // 0°
 static const int SERVO_MAX_US = 2500;   // 180°
 static const int SERVO_CENTER_DEG = 90;
 
-// Per-servo trim — adjust if mounting is off-center.
-static const int PAN_TRIM_DEG  = 0;
-static const int TILT_TRIM_DEG = 0;
+// Per-servo trim (mutable — adjust at runtime via SERVO_TRIM command).
+static int pan_trim_deg  = 0;
+static int tilt_trim_deg = 0;
 
-// Travel limits to avoid binding against the mount.
-static const int PAN_MIN_DEG  = 30;
-static const int PAN_MAX_DEG  = 150;
-static const int TILT_MIN_DEG = 60;
-static const int TILT_MAX_DEG = 120;
+// Travel limits (mutable — adjust at runtime via SERVO_LIMITS command).
+static int pan_min_deg  = 30;
+static int pan_max_deg  = 150;
+static int tilt_min_deg = 60;
+static int tilt_max_deg = 120;
 
 static Servo pan_servo;
 static Servo tilt_servo;
@@ -46,13 +46,13 @@ static int clamp(int v, int lo, int hi) {
 }
 
 static void write_pan_raw(int deg) {
-    int d = clamp(deg + PAN_TRIM_DEG, PAN_MIN_DEG, PAN_MAX_DEG);
+    int d = clamp(deg + pan_trim_deg, pan_min_deg, pan_max_deg);
     if (servos_attached) pan_servo.write(d);
     pan_current_deg = d;
 }
 
 static void write_tilt_raw(int deg) {
-    int d = clamp(deg + TILT_TRIM_DEG, TILT_MIN_DEG, TILT_MAX_DEG);
+    int d = clamp(deg + tilt_trim_deg, tilt_min_deg, tilt_max_deg);
     if (servos_attached) tilt_servo.write(d);
     tilt_current_deg = d;
 }
@@ -78,12 +78,35 @@ void servos_init() {
     script_idx = 0;
 }
 
+// Live tuning — setters
+void servo_set_limits(int pan_min, int pan_max, int tilt_min, int tilt_max) {
+    pan_min_deg  = clamp(pan_min,  0, 180);
+    pan_max_deg  = clamp(pan_max,  0, 180);
+    tilt_min_deg = clamp(tilt_min, 0, 180);
+    tilt_max_deg = clamp(tilt_max, 0, 180);
+    if (pan_min_deg  > pan_max_deg)  { int t = pan_min_deg;  pan_min_deg  = pan_max_deg;  pan_max_deg  = t; }
+    if (tilt_min_deg > tilt_max_deg) { int t = tilt_min_deg; tilt_min_deg = tilt_max_deg; tilt_max_deg = t; }
+}
+
+void servo_set_trim(int pan_trim, int tilt_trim) {
+    pan_trim_deg  = clamp(pan_trim,  -90, 90);
+    tilt_trim_deg = clamp(tilt_trim, -90, 90);
+}
+
+// Live tuning — getters
+int servo_get_pan_min()   { return pan_min_deg; }
+int servo_get_pan_max()   { return pan_max_deg; }
+int servo_get_tilt_min()  { return tilt_min_deg; }
+int servo_get_tilt_max()  { return tilt_max_deg; }
+int servo_get_pan_trim()  { return pan_trim_deg; }
+int servo_get_tilt_trim() { return tilt_trim_deg; }
+
 void servo_pan_to(int angle_deg) {
-    pan_target_deg = clamp(angle_deg, PAN_MIN_DEG, PAN_MAX_DEG);
+    pan_target_deg = clamp(angle_deg, pan_min_deg, pan_max_deg);
 }
 
 void servo_tilt_to(int angle_deg) {
-    tilt_target_deg = clamp(angle_deg, TILT_MIN_DEG, TILT_MAX_DEG);
+    tilt_target_deg = clamp(angle_deg, tilt_min_deg, tilt_max_deg);
 }
 
 static void start_script(const Step *steps, int n, uint32_t now_ms) {
@@ -97,27 +120,27 @@ static void start_script(const Step *steps, int n, uint32_t now_ms) {
 }
 
 void servo_nod() {
-    static const Step s[] = {
-        {SERVO_CENTER_DEG, TILT_MAX_DEG, 300},
-        {SERVO_CENTER_DEG, TILT_MIN_DEG, 300},
+    Step s[] = {
+        {SERVO_CENTER_DEG, tilt_max_deg, 300},
+        {SERVO_CENTER_DEG, tilt_min_deg, 300},
         {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 200},
     };
     start_script(s, 3, millis());
 }
 
 void servo_shake() {
-    static const Step s[] = {
-        {PAN_MIN_DEG, SERVO_CENTER_DEG, 250},
-        {PAN_MAX_DEG, SERVO_CENTER_DEG, 250},
-        {PAN_MIN_DEG, SERVO_CENTER_DEG, 250},
-        {PAN_MAX_DEG, SERVO_CENTER_DEG, 250},
+    Step s[] = {
+        {pan_min_deg, SERVO_CENTER_DEG, 250},
+        {pan_max_deg, SERVO_CENTER_DEG, 250},
+        {pan_min_deg, SERVO_CENTER_DEG, 250},
+        {pan_max_deg, SERVO_CENTER_DEG, 250},
         {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 200},
     };
     start_script(s, 5, millis());
 }
 
 void servo_tilt_left() {
-    static const Step s[] = {
+    Step s[] = {
         {SERVO_CENTER_DEG - 30, SERVO_CENTER_DEG, 400},
         {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 200},
     };
@@ -125,7 +148,7 @@ void servo_tilt_left() {
 }
 
 void servo_tilt_right() {
-    static const Step s[] = {
+    Step s[] = {
         {SERVO_CENTER_DEG + 30, SERVO_CENTER_DEG, 400},
         {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 200},
     };
@@ -133,7 +156,7 @@ void servo_tilt_right() {
 }
 
 void servo_wiggle() {
-    static const Step s[] = {
+    Step s[] = {
         {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 150},
         {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 150},
         {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 150},
@@ -144,7 +167,7 @@ void servo_wiggle() {
 }
 
 void servo_idle() {
-    static const Step s[] = {
+    Step s[] = {
         {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 200},
     };
     start_script(s, 1, millis());
