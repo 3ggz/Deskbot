@@ -45,6 +45,10 @@ static void handle_command(const char *line) {
     } else if (strcmp(line, "BLINK") == 0) {
         state_trigger_blink(g_state, millis());
         Serial.println("OK");
+    } else if (strncmp(line, "TEXT ", 5) == 0) {
+        state_set_caption(g_state, line + 5, 4500, millis());
+        Serial.println("OK");
+        return;
     } else if (strncmp(line, "SERVO ", 6) == 0) {
         const char *act = line + 6;
         if      (strcmp(act, "nod") == 0)         servo_nod();
@@ -152,7 +156,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v1.5");
+    Serial.println("READY v1.6");
 }
 
 void loop() {
@@ -160,6 +164,7 @@ void loop() {
     state_update_animation(g_state, millis());
     servos_tick(millis());
     int gx = state_current_pupil_offset(g_state, millis());
-    face_render_state(g_state.current, g_state.current_color, gx);
+    const char *cap = (millis() < g_state.caption_until_ms) ? g_state.caption : nullptr;
+    face_render_state_with_caption(g_state.current, g_state.current_color, gx, cap);
     delay(16);  // ~60 FPS
 }

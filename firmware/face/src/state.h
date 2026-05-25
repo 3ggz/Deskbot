@@ -36,6 +36,10 @@ struct FaceState {
 
     // Auto-return-to-baseline tracking
     bool returned_to_baseline;
+
+    // Caption overlay
+    char     caption[80];
+    uint32_t caption_until_ms;
 };
 
 void state_init(FaceState &s);
@@ -45,6 +49,8 @@ void state_update_animation(FaceState &s, uint32_t now_ms);
 void state_trigger_blink(FaceState &s, uint32_t now_ms);
 void state_schedule_next_blink(FaceState &s, uint32_t now_ms);
 void state_trigger_glance(FaceState &s, uint32_t now_ms);
+
+void state_set_caption(FaceState &s, const char *text, uint32_t duration_ms, uint32_t now_ms);
 
 float ease_cubic(float t);
 

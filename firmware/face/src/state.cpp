@@ -132,6 +132,17 @@ void state_init(FaceState &s) {
     s.glance_x_offset = 0;
     s.glance_end_ms = 0;
     s.returned_to_baseline = true;  // start at baseline — no auto-return pending
+
+    s.caption[0] = 0;
+    s.caption_until_ms = 0;
+}
+
+void state_set_caption(FaceState &s, const char *text, uint32_t duration_ms, uint32_t now_ms) {
+    if (!text) text = "";
+    int i = 0;
+    for (; text[i] && i < (int)sizeof(s.caption) - 1; ++i) s.caption[i] = text[i];
+    s.caption[i] = 0;
+    s.caption_until_ms = now_ms + duration_ms;
 }
 
 void state_set_target_emotion(FaceState &s, EmotionId id, uint16_t color, uint32_t now_ms) {

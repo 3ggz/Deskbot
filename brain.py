@@ -200,6 +200,9 @@ class Brain:
 
             # Push head movement
             self.face.move(parsed["movement"])
+
+            # Show the spoken text as a caption on the face
+            self.face.say(parsed["speech"])
             return parsed
 
         except Exception as e:

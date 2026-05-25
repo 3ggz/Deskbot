@@ -23,3 +23,14 @@ void face_render_state(const struct EyePair &pair, uint16_t color, int glance_x_
 void fb_fill(uint16_t color);
 void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color);
 void fb_push_to_lcd();
+
+// Caption text overlay. Drawn on top of the face. Returns immediately;
+// the actual text is held in state and rendered each frame.
+void face_render_state_with_caption(const struct EyePair &pair, uint16_t color,
+                                    int glance_x_offset,
+                                    const char *caption /* nullptr or "" = none */);
+
+// Low-level text helpers (exposed in case other tasks want them).
+void fb_draw_char(int x, int y, char c, int scale, uint16_t color);
+void fb_draw_string(int x, int y, const char *s, int scale, uint16_t color);
+int  fb_string_width(const char *s, int scale);  // pixels for sizing the bubble

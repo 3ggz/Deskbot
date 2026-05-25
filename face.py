@@ -58,6 +58,11 @@ class Face:
     def reset(self) -> None:
         self._send_line("RESET")
 
+    def say(self, text: str) -> None:
+        # Strip any newlines and limit length to avoid serial bloat.
+        sanitized = " ".join(text.split())[:120]
+        self._send_line(f"TEXT {sanitized}")
+
     def move(self, movement: str) -> None:
         self._send_line(f"SERVO {movement}")
 
