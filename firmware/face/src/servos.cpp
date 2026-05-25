@@ -1,66 +1,110 @@
 // firmware/face/src/servos.cpp
-// Two-servo head control via ESP32Servo (MCPWM-backed).
+// Smooth-interpolated two-servo head control.
+// Position is tracked in microseconds; movement uses cubic ease-in-out.
 #include "servos.h"
 #include <ESP32Servo.h>
+#include <math.h>
 
 static const int PAN_PIN  = 43;
 static const int TILT_PIN = 44;
 
-// SG90 calibration (typical)
-static const int SERVO_MIN_US = 500;    // 0°
-static const int SERVO_MAX_US = 2500;   // 180°
+// SG90 pulse range (microseconds)
+static const int SERVO_MIN_US = 500;     // 0°
+static const int SERVO_MAX_US = 2500;    // 180°
 static const int SERVO_CENTER_DEG = 90;
 
-// Per-servo trim (mutable — adjust at runtime via SERVO_TRIM command).
+// Per-servo trim (mutable — adjust via SERVO_TRIM command).
 static int pan_trim_deg  = 0;
 static int tilt_trim_deg = 0;
 
-// Travel limits (mutable — adjust at runtime via SERVO_LIMITS command).
+// Travel limits (mutable — adjust via SERVO_LIMITS command).
 static int pan_min_deg  = 30;
 static int pan_max_deg  = 150;
 static int tilt_min_deg = 60;
 static int tilt_max_deg = 120;
 
+// Default transition for explicit PAN/TILT commands.
+static const uint32_t DEFAULT_TRANSITION_MS = 400;
+
 static Servo pan_servo;
 static Servo tilt_servo;
 static bool  servos_attached = false;
 
-// Current and target angles
-static int  pan_current_deg  = SERVO_CENTER_DEG;
-static int  tilt_current_deg = SERVO_CENTER_DEG;
-static int  pan_target_deg   = SERVO_CENTER_DEG;
-static int  tilt_target_deg  = SERVO_CENTER_DEG;
+// Per-axis transition state (microseconds).
+static int      pan_current_us  = 1500;
+static int      pan_start_us    = 1500;
+static int      pan_target_us   = 1500;
+static uint32_t pan_step_start_ms = 0;
+static uint32_t pan_step_dur_ms   = 0;
 
-// Movement scripts (sequence of (pan, tilt, hold_ms) steps).
+static int      tilt_current_us  = 1500;
+static int      tilt_start_us    = 1500;
+static int      tilt_target_us   = 1500;
+static uint32_t tilt_step_start_ms = 0;
+static uint32_t tilt_step_dur_ms   = 0;
+
+// Movement scripts.
 struct Step { int pan, tilt, hold_ms; };
 static const int MAX_STEPS = 12;
 static Step      script[MAX_STEPS];
 static int       script_len = 0;
 static int       script_idx = 0;
-static uint32_t  script_step_start_ms = 0;
 
-static int clamp(int v, int lo, int hi) {
+static int clamp_i(int v, int lo, int hi) {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
 }
 
-static void write_pan_raw(int deg) {
-    int d = clamp(deg + pan_trim_deg, pan_min_deg, pan_max_deg);
-    if (servos_attached) pan_servo.write(d);
-    pan_current_deg = d;
+static float ease_cubic_f(float t) {
+    if (t <= 0.0f) return 0.0f;
+    if (t >= 1.0f) return 1.0f;
+    return t < 0.5f ? 4.0f * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 3.0f) / 2.0f;
 }
 
-static void write_tilt_raw(int deg) {
-    int d = clamp(deg + tilt_trim_deg, tilt_min_deg, tilt_max_deg);
-    if (servos_attached) tilt_servo.write(d);
-    tilt_current_deg = d;
+// Map a (clamped) angle in degrees to a pulse width in microseconds.
+static int deg_to_us(int deg) {
+    long us = SERVO_MIN_US + ((long)(SERVO_MAX_US - SERVO_MIN_US) * (long)deg) / 180L;
+    return (int)us;
+}
+
+// Map a microsecond pulse back to an angle (for getters).
+static int us_to_deg(int us) {
+    long deg = ((long)(us - SERVO_MIN_US) * 180L) / (long)(SERVO_MAX_US - SERVO_MIN_US);
+    if (deg < 0)   deg = 0;
+    if (deg > 180) deg = 180;
+    return (int)deg;
+}
+
+static void write_pan_us(int us) {
+    pan_current_us = us;
+    if (servos_attached) pan_servo.writeMicroseconds(us);
+}
+
+static void write_tilt_us(int us) {
+    tilt_current_us = us;
+    if (servos_attached) tilt_servo.writeMicroseconds(us);
+}
+
+// Start a new pan transition (in degrees, after clamping + trim).
+static void start_pan_transition(int target_deg, uint32_t duration_ms, uint32_t now_ms) {
+    int clamped = clamp_i(target_deg + pan_trim_deg, pan_min_deg, pan_max_deg);
+    pan_start_us = pan_current_us;
+    pan_target_us = deg_to_us(clamped);
+    pan_step_start_ms = now_ms;
+    pan_step_dur_ms   = duration_ms;
+}
+
+static void start_tilt_transition(int target_deg, uint32_t duration_ms, uint32_t now_ms) {
+    int clamped = clamp_i(target_deg + tilt_trim_deg, tilt_min_deg, tilt_max_deg);
+    tilt_start_us = tilt_current_us;
+    tilt_target_us = deg_to_us(clamped);
+    tilt_step_start_ms = now_ms;
+    tilt_step_dur_ms   = duration_ms;
 }
 
 void servos_init() {
-    // ESP32Servo uses the first available 50Hz timer of MCPWM by default.
-    // No explicit pinMode needed — the library handles pin setup itself.
-    bool pan_ok  = pan_servo.attach(PAN_PIN, SERVO_MIN_US, SERVO_MAX_US);
+    bool pan_ok  = pan_servo.attach(PAN_PIN,  SERVO_MIN_US, SERVO_MAX_US);
     bool tilt_ok = tilt_servo.attach(TILT_PIN, SERVO_MIN_US, SERVO_MAX_US);
     servos_attached = pan_ok && tilt_ok;
 
@@ -70,45 +114,25 @@ void servos_init() {
     Serial.print(" tilt_attached=");         Serial.print(tilt_ok ? 1 : 0);
     Serial.println();
 
-    write_pan_raw(SERVO_CENTER_DEG);
-    write_tilt_raw(SERVO_CENTER_DEG);
-    pan_target_deg  = SERVO_CENTER_DEG;
-    tilt_target_deg = SERVO_CENTER_DEG;
+    int center_us = deg_to_us(SERVO_CENTER_DEG);
+    pan_current_us = pan_start_us = pan_target_us = center_us;
+    tilt_current_us = tilt_start_us = tilt_target_us = center_us;
+    pan_step_dur_ms = tilt_step_dur_ms = 0;
+    write_pan_us(center_us);
+    write_tilt_us(center_us);
+
     script_len = 0;
     script_idx = 0;
 }
 
-// Live tuning — setters
-void servo_set_limits(int pan_min, int pan_max, int tilt_min, int tilt_max) {
-    pan_min_deg  = clamp(pan_min,  0, 180);
-    pan_max_deg  = clamp(pan_max,  0, 180);
-    tilt_min_deg = clamp(tilt_min, 0, 180);
-    tilt_max_deg = clamp(tilt_max, 0, 180);
-    if (pan_min_deg  > pan_max_deg)  { int t = pan_min_deg;  pan_min_deg  = pan_max_deg;  pan_max_deg  = t; }
-    if (tilt_min_deg > tilt_max_deg) { int t = tilt_min_deg; tilt_min_deg = tilt_max_deg; tilt_max_deg = t; }
-}
-
-void servo_set_trim(int pan_trim, int tilt_trim) {
-    pan_trim_deg  = clamp(pan_trim,  -90, 90);
-    tilt_trim_deg = clamp(tilt_trim, -90, 90);
-}
-
-// Live tuning — getters
-int servo_get_pan_min()   { return pan_min_deg; }
-int servo_get_pan_max()   { return pan_max_deg; }
-int servo_get_tilt_min()  { return tilt_min_deg; }
-int servo_get_tilt_max()  { return tilt_max_deg; }
-int servo_get_pan_trim()  { return pan_trim_deg; }
-int servo_get_tilt_trim() { return tilt_trim_deg; }
-
 void servo_pan_to(int angle_deg) {
-    script_len = 0;  // cancel any active script — explicit positioning wins
-    pan_target_deg = clamp(angle_deg, pan_min_deg, pan_max_deg);
+    script_len = 0;
+    start_pan_transition(angle_deg, DEFAULT_TRANSITION_MS, millis());
 }
 
 void servo_tilt_to(int angle_deg) {
     script_len = 0;
-    tilt_target_deg = clamp(angle_deg, tilt_min_deg, tilt_max_deg);
+    start_tilt_transition(angle_deg, DEFAULT_TRANSITION_MS, millis());
 }
 
 static void start_script(const Step *steps, int n, uint32_t now_ms) {
@@ -116,80 +140,100 @@ static void start_script(const Step *steps, int n, uint32_t now_ms) {
     for (int i = 0; i < copy; ++i) script[i] = steps[i];
     script_len = copy;
     script_idx = 0;
-    script_step_start_ms = now_ms;
-    pan_target_deg  = script[0].pan;
-    tilt_target_deg = script[0].tilt;
+    start_pan_transition(script[0].pan,  script[0].hold_ms, now_ms);
+    start_tilt_transition(script[0].tilt, script[0].hold_ms, now_ms);
 }
 
 void servo_nod() {
     Step s[] = {
-        {SERVO_CENTER_DEG, tilt_max_deg, 300},
-        {SERVO_CENTER_DEG, tilt_min_deg, 300},
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG, tilt_max_deg, 350},
+        {SERVO_CENTER_DEG, tilt_min_deg, 350},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 300},
     };
     start_script(s, 3, millis());
 }
 
 void servo_shake() {
     Step s[] = {
-        {pan_min_deg, SERVO_CENTER_DEG, 250},
-        {pan_max_deg, SERVO_CENTER_DEG, 250},
-        {pan_min_deg, SERVO_CENTER_DEG, 250},
-        {pan_max_deg, SERVO_CENTER_DEG, 250},
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 200},
+        {pan_min_deg, SERVO_CENTER_DEG, 300},
+        {pan_max_deg, SERVO_CENTER_DEG, 300},
+        {pan_min_deg, SERVO_CENTER_DEG, 300},
+        {pan_max_deg, SERVO_CENTER_DEG, 300},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 300},
     };
     start_script(s, 5, millis());
 }
 
 void servo_tilt_left() {
     Step s[] = {
-        {SERVO_CENTER_DEG - 30, SERVO_CENTER_DEG, 400},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG - 30, SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 400},
     };
     start_script(s, 2, millis());
 }
 
 void servo_tilt_right() {
     Step s[] = {
-        {SERVO_CENTER_DEG + 30, SERVO_CENTER_DEG, 400},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG + 30, SERVO_CENTER_DEG, 500},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 400},
     };
     start_script(s, 2, millis());
 }
 
 void servo_wiggle() {
     Step s[] = {
-        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 150},
-        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 150},
-        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 150},
-        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 150},
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG, 250},
     };
     start_script(s, 5, millis());
 }
 
 void servo_idle() {
     Step s[] = {
-        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 200},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG, 400},
     };
     start_script(s, 1, millis());
 }
 
 void servos_tick(uint32_t now_ms) {
-    if (pan_current_deg < pan_target_deg)       write_pan_raw(pan_current_deg + 1);
-    else if (pan_current_deg > pan_target_deg)  write_pan_raw(pan_current_deg - 1);
+    // Pan interpolation
+    if (pan_step_dur_ms > 0) {
+        uint32_t dt = now_ms - pan_step_start_ms;
+        float t = (float)dt / (float)pan_step_dur_ms;
+        if (t >= 1.0f) {
+            write_pan_us(pan_target_us);
+        } else {
+            float e = ease_cubic_f(t);
+            int us = pan_start_us + (int)((float)(pan_target_us - pan_start_us) * e);
+            write_pan_us(us);
+        }
+    }
 
-    if (tilt_current_deg < tilt_target_deg)      write_tilt_raw(tilt_current_deg + 1);
-    else if (tilt_current_deg > tilt_target_deg) write_tilt_raw(tilt_current_deg - 1);
+    // Tilt interpolation
+    if (tilt_step_dur_ms > 0) {
+        uint32_t dt = now_ms - tilt_step_start_ms;
+        float t = (float)dt / (float)tilt_step_dur_ms;
+        if (t >= 1.0f) {
+            write_tilt_us(tilt_target_us);
+        } else {
+            float e = ease_cubic_f(t);
+            int us = tilt_start_us + (int)((float)(tilt_target_us - tilt_start_us) * e);
+            write_tilt_us(us);
+        }
+    }
 
+    // Advance script when BOTH axes have finished their current step.
     if (script_len > 0 && script_idx < script_len) {
-        bool at_target = (pan_current_deg == pan_target_deg && tilt_current_deg == tilt_target_deg);
-        if (at_target && (now_ms - script_step_start_ms) >= (uint32_t)script[script_idx].hold_ms) {
+        bool pan_done  = (now_ms - pan_step_start_ms)  >= pan_step_dur_ms;
+        bool tilt_done = (now_ms - tilt_step_start_ms) >= tilt_step_dur_ms;
+        if (pan_done && tilt_done) {
             script_idx++;
             if (script_idx < script_len) {
-                pan_target_deg  = script[script_idx].pan;
-                tilt_target_deg = script[script_idx].tilt;
-                script_step_start_ms = now_ms;
+                start_pan_transition(script[script_idx].pan,   script[script_idx].hold_ms, now_ms);
+                start_tilt_transition(script[script_idx].tilt, script[script_idx].hold_ms, now_ms);
             } else {
                 script_len = 0;
             }
@@ -197,7 +241,28 @@ void servos_tick(uint32_t now_ms) {
     }
 }
 
-int servo_pan_current()  { return pan_current_deg; }
-int servo_tilt_current() { return tilt_current_deg; }
-int servo_pan_target()   { return pan_target_deg; }
-int servo_tilt_target()  { return tilt_target_deg; }
+int servo_pan_current()  { return us_to_deg(pan_current_us); }
+int servo_tilt_current() { return us_to_deg(tilt_current_us); }
+int servo_pan_target()   { return us_to_deg(pan_target_us);  }
+int servo_tilt_target()  { return us_to_deg(tilt_target_us); }
+
+void servo_set_limits(int pan_min, int pan_max, int tilt_min, int tilt_max) {
+    pan_min_deg  = clamp_i(pan_min,  0, 180);
+    pan_max_deg  = clamp_i(pan_max,  0, 180);
+    tilt_min_deg = clamp_i(tilt_min, 0, 180);
+    tilt_max_deg = clamp_i(tilt_max, 0, 180);
+    if (pan_min_deg  > pan_max_deg)  { int t = pan_min_deg;  pan_min_deg  = pan_max_deg;  pan_max_deg  = t; }
+    if (tilt_min_deg > tilt_max_deg) { int t = tilt_min_deg; tilt_min_deg = tilt_max_deg; tilt_max_deg = t; }
+}
+
+void servo_set_trim(int pan_trim, int tilt_trim) {
+    pan_trim_deg  = clamp_i(pan_trim,  -90, 90);
+    tilt_trim_deg = clamp_i(tilt_trim, -90, 90);
+}
+
+int servo_get_pan_min()   { return pan_min_deg; }
+int servo_get_pan_max()   { return pan_max_deg; }
+int servo_get_tilt_min()  { return tilt_min_deg; }
+int servo_get_tilt_max()  { return tilt_max_deg; }
+int servo_get_pan_trim()  { return pan_trim_deg; }
+int servo_get_tilt_trim() { return tilt_trim_deg; }
