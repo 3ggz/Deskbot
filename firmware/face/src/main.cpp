@@ -58,6 +58,32 @@ static void handle_command(const char *line) {
             Serial.println(act);
             return;
         }
+        Serial.print("LOG servo_cmd="); Serial.print(act);
+        Serial.print(" pan_now="); Serial.print(servo_pan_current());
+        Serial.print(" tilt_now="); Serial.print(servo_tilt_current());
+        Serial.println();
+        Serial.println("OK");
+        return;
+    } else if (strcmp(line, "SERVO_TEST_HIGH") == 0) {
+        // Bypass LEDC — toggle the pan pin to plain HIGH so the user can
+        // verify with a multimeter that GPIO43 actually reaches ~3.3V.
+        ledcDetachPin(43);
+        ledcDetachPin(44);
+        pinMode(43, OUTPUT); digitalWrite(43, HIGH);
+        pinMode(44, OUTPUT); digitalWrite(44, HIGH);
+        Serial.println("LOG SERVO_TEST_HIGH pins 43,44 set HIGH");
+        Serial.println("OK");
+        return;
+    } else if (strcmp(line, "SERVO_TEST_LOW") == 0) {
+        ledcDetachPin(43);
+        ledcDetachPin(44);
+        pinMode(43, OUTPUT); digitalWrite(43, LOW);
+        pinMode(44, OUTPUT); digitalWrite(44, LOW);
+        Serial.println("LOG SERVO_TEST_LOW pins 43,44 set LOW");
+        Serial.println("OK");
+        return;
+    } else if (strcmp(line, "SERVO_RESET") == 0) {
+        servos_init();
         Serial.println("OK");
         return;
     } else {
@@ -83,7 +109,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v0.8");
+    Serial.println("READY v0.9-diag");
 }
 
 void loop() {

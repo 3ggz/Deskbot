@@ -67,10 +67,23 @@ static void write_tilt_raw(int deg) {
 }
 
 void servos_init() {
-    ledcSetup(PAN_CHANNEL,  SERVO_FREQ_HZ, SERVO_RESOLUTION);
+    // Force GPIO mode before LEDC attach. Arduino-ESP32 sometimes leaves these
+    // as UART0 even when Serial1 isn't started.
+    pinMode(PAN_PIN,  OUTPUT);
+    pinMode(TILT_PIN, OUTPUT);
+    digitalWrite(PAN_PIN,  LOW);
+    digitalWrite(TILT_PIN, LOW);
+
+    bool pan_ok  = ledcSetup(PAN_CHANNEL,  SERVO_FREQ_HZ, SERVO_RESOLUTION) > 0;
     ledcAttachPin(PAN_PIN,  PAN_CHANNEL);
-    ledcSetup(TILT_CHANNEL, SERVO_FREQ_HZ, SERVO_RESOLUTION);
+    bool tilt_ok = ledcSetup(TILT_CHANNEL, SERVO_FREQ_HZ, SERVO_RESOLUTION) > 0;
     ledcAttachPin(TILT_PIN, TILT_CHANNEL);
+
+    Serial.print("LOG servo_init pan_pin="); Serial.print(PAN_PIN);
+    Serial.print(" tilt_pin=");              Serial.print(TILT_PIN);
+    Serial.print(" pan_ledc_ok=");           Serial.print(pan_ok ? 1 : 0);
+    Serial.print(" tilt_ledc_ok=");          Serial.print(tilt_ok ? 1 : 0);
+    Serial.println();
 
     write_pan_raw(SERVO_CENTER_DEG);
     write_tilt_raw(SERVO_CENTER_DEG);
@@ -78,7 +91,13 @@ void servos_init() {
     tilt_target_deg = SERVO_CENTER_DEG;
     script_len = 0;
     script_idx = 0;
+
+    uint32_t center_duty = deg_to_duty(SERVO_CENTER_DEG);
+    Serial.print("LOG servo_center_duty=");  Serial.println(center_duty);
 }
+
+int servo_pan_current()  { return pan_current_deg; }
+int servo_tilt_current() { return tilt_current_deg; }
 
 void servo_pan_to(int angle_deg) {
     pan_target_deg = clamp(angle_deg, PAN_MIN_DEG, PAN_MAX_DEG);

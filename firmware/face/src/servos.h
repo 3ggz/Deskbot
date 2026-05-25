@@ -20,3 +20,6 @@ void servo_wiggle();        // alternating pan, several oscillations (dance)
 void servo_idle();          // return to center
 
 void servos_tick(uint32_t now_ms);  // call every render frame
+
+int servo_pan_current();
+int servo_tilt_current();
