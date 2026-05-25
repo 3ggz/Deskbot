@@ -451,11 +451,13 @@ void face_render_state_with_caption(const EyePair &p, uint16_t color,
         truncated[len] = 0;
 
         int text_w = fb_string_width(truncated, scale);
-        int box_w  = text_w + 32;       // horizontal padding
-        if (box_w > 400) box_w = 400;
+        int box_w  = text_w + 32;            // padding
+        if (box_w > 360) box_w = 360;        // narrower so it fits inside the round display
         int box_h  = char_h + 18;
         int box_x  = (FACE_WIDTH - box_w) / 2;
-        int box_y  = FACE_HEIGHT - box_h - 32;  // 32px above bottom edge
+        // The display is round — bottom 100px gets clipped by the curve.
+        // Placing the box near 60% down keeps it within the visible circle.
+        int box_y  = 350;
 
         // Dark rounded box (dark blueish-grey).
         fb_fill_round_rect(box_x, box_y, box_w, box_h, 12, 0x18C3);
