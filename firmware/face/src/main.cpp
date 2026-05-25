@@ -67,6 +67,7 @@ static void handle_command(const char *line) {
         else if (strcmp(act, "wiggle") == 0)       servo_wiggle();
         else if (strcmp(act, "idle") == 0)         servo_idle();
         else if (strcmp(act, "dance") == 0)        servo_dance();
+        else if (strcmp(act, "dance_crazy") == 0)  servo_dance_crazy();
         else if (strcmp(act, "look_around") == 0)  servo_look_around();
         else if (strcmp(act, "bow") == 0)          servo_bow();
         else {
@@ -169,7 +170,7 @@ void setup() {
     servos_init();
     parser_setup(handle_command);
     touch_init();
-    Serial.println("READY v2.3");
+    Serial.println("READY v2.4");
 }
 
 static void trigger_flinch(int x, int y) {

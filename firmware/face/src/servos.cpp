@@ -54,7 +54,7 @@ static const uint32_t AMBIENT_IDLE_THRESHOLD_MS = 30000;  // start drifting afte
 
 // Movement scripts.
 struct Step { int pan, tilt, hold_ms; };
-static const int MAX_STEPS = 16;
+static const int MAX_STEPS = 40;
 static Step      script[MAX_STEPS];
 static int       script_len = 0;
 static int       script_idx = 0;
@@ -219,30 +219,91 @@ void servo_wiggle() {
 }
 
 void servo_dance() {
-    // 16-step DANCE. Diagonal bounces → quick wiggle middle → circular flourish.
+    // DANCE — 24 steps, ~5.5s of party.
+    // Opening: 4 corner bounces. Mid: quick headbangs + figure-8.
+    // Finale: big circular flourish.
     Step s[] = {
-        // Opening diagonal bounces (4 corners of a square)
-        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG - 8, 250},   // up-right
-        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG + 6, 240},   // down-right
-        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG + 6, 280},   // sweep to down-left
-        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG - 8, 240},   // up-left
-        // Quick wiggle finish-pop
-        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG,     180},
-        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG,     180},
-        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG,     180},
-        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG,     180},
-        // Circular flourish (clockwise from up)
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 10, 250},  // up
-        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG - 5,  220},  // up-right
-        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG + 4,  220},  // right
-        {SERVO_CENTER_DEG + 8,  SERVO_CENTER_DEG + 10, 220},  // down-right
-        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 10, 220},  // down
-        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG + 4,  220},  // down-left
-        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG - 5,  220},  // left
-        // Finale: center
+        // Opening corner bounces
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG - 8,  220},
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG + 6,  220},
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG + 6,  240},
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG - 8,  220},
+        // Quick headbangs (tilt up/down fast)
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 12, 160},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 10, 160},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 12, 160},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 10, 160},
+        // Side-to-side beats
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG,      160},
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG,      160},
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG,      160},
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG,      160},
+        // Figure-8 (pan + counter tilt)
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG - 6,  200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 8,  200},
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG - 6,  200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 8,  200},
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG - 6,  200},
+        // Finale: big clockwise circle
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 12, 220},
+        {SERVO_CENTER_DEG + 18, SERVO_CENTER_DEG - 4,  200},
+        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG + 8,  200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 12, 220},
+        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG + 8,  200},
+        {SERVO_CENTER_DEG - 18, SERVO_CENTER_DEG - 4,  200},
+        // Pose
         {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      400},
     };
-    start_script(s, 16, millis());
+    start_script(s, 24, millis());
+}
+
+void servo_dance_crazy() {
+    // CHAOS MODE — 36 steps of pure absurd movement.
+    Step s[] = {
+        // Rapid-fire opener — 8 fast snaps
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG - 12, 130},
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG + 12, 130},
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG - 12, 130},
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG + 12, 130},
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG + 12, 130},
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG - 12, 130},
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG + 12, 130},
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG - 12, 130},
+        // Vertical headbangs (extreme)
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 14, 140},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 14, 140},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 14, 140},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 14, 140},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 14, 140},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 14, 140},
+        // Big slow swing
+        {SERVO_CENTER_DEG - 25, SERVO_CENTER_DEG - 8,  300},
+        {SERVO_CENTER_DEG + 25, SERVO_CENTER_DEG - 8,  500},
+        {SERVO_CENTER_DEG + 25, SERVO_CENTER_DEG + 8,  300},
+        {SERVO_CENTER_DEG - 25, SERVO_CENTER_DEG + 8,  500},
+        // Zigzag attack
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG - 10, 150},
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG - 10, 150},
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG + 10, 150},
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG + 10, 150},
+        {SERVO_CENTER_DEG + 15, SERVO_CENTER_DEG - 10, 150},
+        {SERVO_CENTER_DEG - 15, SERVO_CENTER_DEG + 10, 150},
+        // TWO full circles back-to-back
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 12, 180},
+        {SERVO_CENTER_DEG + 20, SERVO_CENTER_DEG - 4,  160},
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG + 8,  160},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 12, 180},
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG + 8,  160},
+        {SERVO_CENTER_DEG - 20, SERVO_CENTER_DEG - 4,  160},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 12, 180},
+        {SERVO_CENTER_DEG + 22, SERVO_CENTER_DEG + 8,  180},  // reverse direction now
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG + 12, 180},
+        {SERVO_CENTER_DEG - 22, SERVO_CENTER_DEG + 8,  180},
+        // Triumphant pose
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG - 8,  300},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      400},
+    };
+    start_script(s, 36, millis());
 }
 
 void servo_look_around() {

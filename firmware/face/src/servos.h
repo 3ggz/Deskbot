@@ -17,7 +17,8 @@ void servo_shake();         // pan: center → left → right → center (no)
 void servo_tilt_left();     // pan: small lean left, hold, return
 void servo_tilt_right();    // pan: small lean right, hold, return
 void servo_wiggle();        // alternating pan, several oscillations (dance)
-void servo_dance();         // 16-step big-energy dance with circular flourish
+void servo_dance();         // 24-step big-energy dance with circular flourish
+void servo_dance_crazy();   // 36-step chaos mode showstopper
 void servo_look_around();   // slow contemplative scan of all four corners
 void servo_bow();           // gracious bow: deep tilt-down, hold, return
 void servo_idle();          // return to center
