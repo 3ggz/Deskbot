@@ -7,6 +7,7 @@
 #include "emotions.h"
 #include "face_render.h"
 #include "serial_parser.h"
+#include "servos.h"
 #include "state.h"
 
 static FaceState g_state;
@@ -44,6 +45,21 @@ static void handle_command(const char *line) {
     } else if (strcmp(line, "BLINK") == 0) {
         state_trigger_blink(g_state, millis());
         Serial.println("OK");
+    } else if (strncmp(line, "SERVO ", 6) == 0) {
+        const char *act = line + 6;
+        if      (strcmp(act, "nod") == 0)         servo_nod();
+        else if (strcmp(act, "shake") == 0)       servo_shake();
+        else if (strcmp(act, "tilt_left") == 0)   servo_tilt_left();
+        else if (strcmp(act, "tilt_right") == 0)  servo_tilt_right();
+        else if (strcmp(act, "wiggle") == 0)      servo_wiggle();
+        else if (strcmp(act, "idle") == 0)        servo_idle();
+        else {
+            Serial.print("LOG bad_servo: ");
+            Serial.println(act);
+            return;
+        }
+        Serial.println("OK");
+        return;
     } else {
         Serial.print("LOG bad_cmd: ");
         Serial.println(line);
@@ -65,13 +81,15 @@ void setup() {
         Serial.println("LOG face_render_init failed");
     }
     state_init(g_state);
+    servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v0.7");
+    Serial.println("READY v0.8");
 }
 
 void loop() {
     parser_poll();
     state_update_animation(g_state, millis());
+    servos_tick(millis());
     int gx = state_current_pupil_offset(g_state, millis());
     face_render_state(g_state.current, g_state.current_color, gx);
     delay(16);  // ~60 FPS

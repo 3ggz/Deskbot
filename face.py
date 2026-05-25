@@ -58,6 +58,9 @@ class Face:
     def reset(self) -> None:
         self._send_line("RESET")
 
+    def move(self, movement: str) -> None:
+        self._send_line(f"SERVO {movement}")
+
     def _reader_loop(self):
         while self._reader_stop is not None and not self._reader_stop.is_set():
             try:

@@ -197,6 +197,9 @@ class Brain:
             # Push emotion to the face controller
             color_hex = LED_COLORS_HEX.get(parsed["led_color"], LED_COLORS_HEX.get("warm_white", "#FFDCB4"))
             self.face.set_emotion(parsed["emotion"], color_hex)
+
+            # Push head movement
+            self.face.move(parsed["movement"])
             return parsed
 
         except Exception as e:
