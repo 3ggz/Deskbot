@@ -10,10 +10,84 @@ import os
 import json
 import logging
 import random
+import sys
 import threading
 import time
 from anthropic import Anthropic
 from face import Face
+
+# Linux-only character-by-character input. Falls back gracefully on Windows.
+try:
+    import termios
+    import tty
+    import select
+    HAS_TERMIOS = True
+except ImportError:
+    HAS_TERMIOS = False
+
+def read_line_with_live_face(face, prompt="You: "):
+    """Read a line of input from stdin, character-by-character, sending each
+    intermediate buffer to face.say() so the user sees their text on Pip in real time.
+
+    Returns the completed line (without the trailing newline) on Enter.
+    Raises EOFError on Ctrl+D, KeyboardInterrupt on Ctrl+C.
+    """
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+
+    if not HAS_TERMIOS:
+        # Windows or other non-Linux — fall back to regular input(). No live caption.
+        return input()
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    buffer = ""
+    last_sent = None
+    last_send_time = 0.0
+    SEND_INTERVAL_S = 0.06  # don't spam more than ~16 updates/sec to serial
+
+    try:
+        tty.setcbreak(fd)
+        while True:
+            # Wait for a character (with small timeout so we can throttle sends)
+            r, _, _ = select.select([fd], [], [], 0.05)
+            if r:
+                ch = sys.stdin.read(1)
+                if ch == "\n" or ch == "\r":
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    # Clear the live caption so the actual response can take over
+                    if face is not None:
+                        face._send_line("TEXT_CLEAR")
+                    return buffer
+                elif ch in ("\x7f", "\x08"):  # backspace / DEL
+                    if buffer:
+                        buffer = buffer[:-1]
+                        sys.stdout.write("\b \b")
+                        sys.stdout.flush()
+                elif ch == "\x03":  # Ctrl+C
+                    sys.stdout.write("\n")
+                    raise KeyboardInterrupt
+                elif ch == "\x04":  # Ctrl+D
+                    sys.stdout.write("\n")
+                    raise EOFError
+                elif ch.isprintable():
+                    buffer += ch
+                    sys.stdout.write(ch)
+                    sys.stdout.flush()
+
+            # Throttle face updates — only send if buffer changed and enough time passed
+            now = time.time()
+            if buffer != last_sent and (now - last_send_time) > SEND_INTERVAL_S:
+                if face is not None:
+                    # TEXT_LIVE holds the caption for 60s — won't auto-expire mid-typing
+                    sanitized = " ".join(buffer.split())[:120]
+                    face._send_line(f"TEXT_LIVE {sanitized}")
+                last_sent = buffer
+                last_send_time = now
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
 
 # ─── Setup ─────────────────────────────────────────────────
 logging.basicConfig(level=logging.DEBUG)
@@ -256,11 +330,20 @@ class Brain:
                 continue
 
             try:
+                # 30% of the time, slip the current local time into the prompt
+                # so Pip occasionally mumbles about it.
+                include_time = random.random() < 0.30
+                if include_time:
+                    now_str = time.strftime("%-I:%M %p")  # e.g. "3:47 PM"
+                    user_msg = f"(generate one dream mumble — the current time is {now_str}, work it in naturally and dreamily)"
+                else:
+                    user_msg = "(generate one dream mumble)"
+
                 response = self.client.messages.create(
                     model=AI_MODEL,
                     max_tokens=60,
                     system=DREAM_PROMPT,
-                    messages=[{"role": "user", "content": "(generate one dream mumble)"}],
+                    messages=[{"role": "user", "content": user_msg}],
                 )
                 dream_text = response.content[0].text.strip().strip('"').strip("'")
                 if dream_text:
@@ -299,7 +382,7 @@ def terminal_chat():
 
         while True:
             try:
-                user_input = input("You: ").strip()
+                user_input = read_line_with_live_face(brain.face, "You: ").strip()
 
                 if not user_input:
                     continue
