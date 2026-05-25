@@ -48,6 +48,10 @@ static int      tilt_target_us     = 1500;
 static uint32_t tilt_step_start_ms = 0;
 static uint32_t tilt_step_dur_ms   = 0;
 
+// Ambient drift state — subtle head motion when nothing has commanded the servos in a while.
+static uint32_t last_command_ms = 0;
+static const uint32_t AMBIENT_IDLE_THRESHOLD_MS = 30000;  // start drifting after 30s
+
 // Movement scripts.
 struct Step { int pan, tilt, hold_ms; };
 static const int MAX_STEPS = 12;
@@ -103,6 +107,7 @@ static void start_pan_transition(int target_deg, uint32_t duration_ms, uint32_t 
     pan_target_us   = (int)pan_target_us_f;
     pan_step_start_ms = now_ms;
     pan_step_dur_ms   = duration_ms;
+    last_command_ms   = now_ms;
 }
 
 static void start_tilt_transition(int target_deg, uint32_t duration_ms, uint32_t now_ms) {
@@ -112,6 +117,7 @@ static void start_tilt_transition(int target_deg, uint32_t duration_ms, uint32_t
     tilt_target_us   = (int)tilt_target_us_f;
     tilt_step_start_ms = now_ms;
     tilt_step_dur_ms   = duration_ms;
+    last_command_ms   = now_ms;
 }
 
 void servos_init() {
@@ -262,6 +268,24 @@ void servos_tick(uint32_t now_ms) {
                 script_len = 0;
             }
         }
+    }
+
+    // Ambient drift — after idle threshold, generate small slow random targets
+    // every 8-15 seconds. Servos drift ±5° on each axis. Gives subtle "alive" feel.
+    static uint32_t next_drift_ms = 0;
+    if (script_len == 0 && (now_ms - last_command_ms) > AMBIENT_IDLE_THRESHOLD_MS) {
+        if (next_drift_ms == 0 || now_ms >= next_drift_ms) {
+            int pan_drift  = SERVO_CENTER_DEG + (int)random(-5, 6);
+            int tilt_drift = SERVO_CENTER_DEG + (int)random(-4, 5);
+            start_pan_transition(pan_drift,  2500, now_ms);
+            start_tilt_transition(tilt_drift, 2500, now_ms);
+            // Ambient shouldn't reset its own idle clock — revert the last_command_ms
+            // bump that start_*_transition did:
+            last_command_ms = now_ms - AMBIENT_IDLE_THRESHOLD_MS - 1000;
+            next_drift_ms = now_ms + 8000 + (uint32_t)random(7000);
+        }
+    } else {
+        next_drift_ms = 0;  // reset scheduler when actively commanded
     }
 }
 

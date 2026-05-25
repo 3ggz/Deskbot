@@ -49,6 +49,17 @@ static void handle_command(const char *line) {
         state_set_caption(g_state, line + 5, 4500, millis());
         Serial.println("OK");
         return;
+    } else if (strncmp(line, "TEXT_LIVE ", 10) == 0) {
+        // Used while user is typing — holds for 60s (so caption doesn't disappear
+        // if the user pauses to think mid-sentence). Each keystroke resets it.
+        state_set_caption(g_state, line + 10, 60000, millis());
+        Serial.println("OK");
+        return;
+    } else if (strcmp(line, "TEXT_CLEAR") == 0) {
+        // Explicit clear (e.g., user pressed Enter and we want caption gone immediately).
+        state_set_caption(g_state, "", 0, millis());
+        Serial.println("OK");
+        return;
     } else if (strncmp(line, "SERVO ", 6) == 0) {
         const char *act = line + 6;
         if      (strcmp(act, "nod") == 0)         servo_nod();
@@ -156,7 +167,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v1.8");
+    Serial.println("READY v1.9");
 }
 
 void loop() {
