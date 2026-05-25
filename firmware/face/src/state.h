@@ -33,6 +33,9 @@ struct FaceState {
     uint32_t next_glance_ms;
     int8_t   glance_x_offset;
     uint32_t glance_end_ms;
+
+    // Auto-return-to-baseline tracking
+    bool returned_to_baseline;
 };
 
 void state_init(FaceState &s);

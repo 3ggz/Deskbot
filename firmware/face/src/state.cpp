@@ -15,6 +15,7 @@ static const float    BREATHE_AMP         = 0.05f;
 static const float    BREATHE_PERIOD_MS   = 3000.0f;
 
 // Idle progression thresholds (milliseconds since last_cmd_ms)
+static const uint32_t EMOTION_HOLD_MS  = 4000;  // After this, shape eases back to NEUTRAL
 static const uint32_t IDLE_BLINK_AT    = 5000;
 static const uint32_t IDLE_GLANCE_AT   = 35000;
 static const uint32_t IDLE_BREATHE_AT  = 95000;
@@ -130,6 +131,7 @@ void state_init(FaceState &s) {
     s.next_glance_ms = 0;
     s.glance_x_offset = 0;
     s.glance_end_ms = 0;
+    s.returned_to_baseline = true;  // start at baseline — no auto-return pending
 }
 
 void state_set_target_emotion(FaceState &s, EmotionId id, uint16_t color, uint32_t now_ms) {
@@ -141,6 +143,7 @@ void state_set_target_emotion(FaceState &s, EmotionId id, uint16_t color, uint32
     s.color_start_ms = now_ms;
     s.last_cmd_ms = now_ms;
     s.mode = MODE_ACTIVE;
+    s.returned_to_baseline = false;
 }
 
 void state_update_animation(FaceState &s, uint32_t now_ms) {
@@ -162,6 +165,19 @@ void state_update_animation(FaceState &s, uint32_t now_ms) {
         s.current_color = s.target_color;
     } else {
         s.current_color = lerp_color565(s.start_color, s.target_color, ease_cubic(tc));
+    }
+
+    // 2.5. Auto-return shape to NEUTRAL baseline after EMOTION_HOLD_MS.
+    //      Color stays — that's the AI's persistent mood signal. Only the shape
+    //      reaction is transient.
+    if (!s.returned_to_baseline && (now_ms - s.last_cmd_ms) > EMOTION_HOLD_MS) {
+        s.start = s.current;
+        s.target = EMOTIONS[EMO_NEUTRAL];
+        s.transition_start_ms = now_ms;
+        // Intentionally do NOT update last_cmd_ms — we want idle progression
+        // to advance based on the original command time, not the auto-return.
+        // Intentionally do NOT change color — preserves the AI's mood.
+        s.returned_to_baseline = true;
     }
 
     // 3. Idle progression based on time since last command.
