@@ -1,7 +1,7 @@
 // firmware/face/src/serial_parser.cpp
 #include "serial_parser.h"
 
-static char buf[128];
+static char buf[320];
 static uint8_t buf_pos = 0;
 static CommandHandler s_handler = nullptr;
 

@@ -38,8 +38,8 @@ struct FaceState {
     bool returned_to_baseline;
 
     // Caption overlay — multi-line, paginated.
-    static const int MAX_LINES = 8;
-    static const int MAX_CHARS_PER_LINE = 32;  // ~30 fits, leave a couple slack
+    static const int MAX_LINES = 12;
+    static const int MAX_CHARS_PER_LINE = 40;  // ~36 fits on screen, leave slack
     char     caption_lines[MAX_LINES][MAX_CHARS_PER_LINE];
     int      caption_line_count;
     int      caption_current_page;   // which 2-line window we're showing

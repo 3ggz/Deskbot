@@ -59,8 +59,9 @@ class Face:
         self._send_line("RESET")
 
     def say(self, text: str) -> None:
-        # Strip any newlines and limit length to avoid serial bloat.
-        sanitized = " ".join(text.split())[:120]
+        # Strip any newlines and limit length. Firmware parser buffer is 320 bytes,
+        # so we have headroom for the "TEXT " prefix + ~280 chars of speech.
+        sanitized = " ".join(text.split())[:280]
         self._send_line(f"TEXT {sanitized}")
 
     def move(self, movement: str) -> None:

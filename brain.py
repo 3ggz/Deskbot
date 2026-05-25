@@ -81,7 +81,7 @@ def read_line_with_live_face(face, prompt="You: "):
             if buffer != last_sent and (now - last_send_time) > SEND_INTERVAL_S:
                 if face is not None:
                     # TEXT_LIVE holds the caption for 60s — won't auto-expire mid-typing
-                    sanitized = " ".join(buffer.split())[:120]
+                    sanitized = " ".join(buffer.split())[:280]
                     face._send_line(f"TEXT_LIVE {sanitized}")
                 last_sent = buffer
                 last_send_time = now

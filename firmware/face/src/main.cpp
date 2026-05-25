@@ -169,7 +169,7 @@ void setup() {
     servos_init();
     parser_setup(handle_command);
     touch_init();
-    Serial.println("READY v2.2");
+    Serial.println("READY v2.3");
 }
 
 static void trigger_flinch(int x, int y) {
