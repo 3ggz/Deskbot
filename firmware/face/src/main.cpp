@@ -50,14 +50,11 @@ static void handle_command(const char *line) {
         Serial.println("OK");
         return;
     } else if (strncmp(line, "TEXT_LIVE ", 10) == 0) {
-        // Used while user is typing — holds for 60s (so caption doesn't disappear
-        // if the user pauses to think mid-sentence). Each keystroke resets it.
-        state_set_caption(g_state, line + 10, 60000, millis());
+        state_set_caption_live(g_state, line + 10, millis());
         Serial.println("OK");
         return;
     } else if (strcmp(line, "TEXT_CLEAR") == 0) {
-        // Explicit clear (e.g., user pressed Enter and we want caption gone immediately).
-        state_set_caption(g_state, "", 0, millis());
+        state_clear_caption(g_state);
         Serial.println("OK");
         return;
     } else if (strncmp(line, "SERVO ", 6) == 0) {
@@ -167,7 +164,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v1.9");
+    Serial.println("READY v2.0");
 }
 
 void loop() {
@@ -175,7 +172,21 @@ void loop() {
     state_update_animation(g_state, millis());
     servos_tick(millis());
     int gx = state_current_pupil_offset(g_state, millis());
-    const char *cap = (millis() < g_state.caption_until_ms) ? g_state.caption : nullptr;
-    face_render_state_with_caption(g_state.current, g_state.current_color, gx, cap);
+    // Tick caption pagination
+    state_tick_caption(g_state, millis());
+
+    // Build the current 1-2 visible lines from caption state
+    const char *vis1 = nullptr;
+    const char *vis2 = nullptr;
+    if (g_state.caption_line_count > 0 && millis() < g_state.caption_until_ms) {
+        int page = g_state.caption_current_page;
+        if (page >= 0 && page < g_state.caption_line_count && g_state.caption_lines[page][0]) {
+            vis1 = g_state.caption_lines[page];
+        }
+        if (page + 1 < g_state.caption_line_count && g_state.caption_lines[page + 1][0]) {
+            vis2 = g_state.caption_lines[page + 1];
+        }
+    }
+    face_render_state_with_caption(g_state.current, g_state.current_color, gx, vis1, vis2);
     delay(16);  // ~60 FPS
 }

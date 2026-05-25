@@ -5,6 +5,7 @@
 #pragma once
 #include <Arduino.h>
 #include "emotions.h"
+#include "state.h"
 
 constexpr int FACE_WIDTH  = 480;
 constexpr int FACE_HEIGHT = 480;
@@ -24,11 +25,10 @@ void fb_fill(uint16_t color);
 void fb_fill_round_rect(int x, int y, int w, int h, int radius, uint16_t color);
 void fb_push_to_lcd();
 
-// Caption text overlay. Drawn on top of the face. Returns immediately;
-// the actual text is held in state and rendered each frame.
+// Caption now supports multiple lines. Pass two lines (one or both can be nullptr/empty).
 void face_render_state_with_caption(const struct EyePair &pair, uint16_t color,
                                     int glance_x_offset,
-                                    const char *caption /* nullptr or "" = none */);
+                                    const char *line1, const char *line2);
 
 // Low-level text helpers (exposed in case other tasks want them).
 void fb_draw_char(int x, int y, char c, int scale, uint16_t color);

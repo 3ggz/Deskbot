@@ -37,9 +37,15 @@ struct FaceState {
     // Auto-return-to-baseline tracking
     bool returned_to_baseline;
 
-    // Caption overlay
-    char     caption[80];
+    // Caption overlay — multi-line, paginated.
+    static const int MAX_LINES = 8;
+    static const int MAX_CHARS_PER_LINE = 32;  // ~30 fits, leave a couple slack
+    char     caption_lines[MAX_LINES][MAX_CHARS_PER_LINE];
+    int      caption_line_count;
+    int      caption_current_page;   // which 2-line window we're showing
     uint32_t caption_until_ms;
+    uint32_t caption_page_advance_ms;
+    bool     caption_live_mode;      // true = show last 2 lines (typing); false = paginate
 };
 
 void state_init(FaceState &s);
@@ -51,6 +57,9 @@ void state_schedule_next_blink(FaceState &s, uint32_t now_ms);
 void state_trigger_glance(FaceState &s, uint32_t now_ms);
 
 void state_set_caption(FaceState &s, const char *text, uint32_t duration_ms, uint32_t now_ms);
+void state_set_caption_live(FaceState &s, const char *text, uint32_t now_ms);  // typing mode
+void state_clear_caption(FaceState &s);
+void state_tick_caption(FaceState &s, uint32_t now_ms);  // advances page if needed
 
 float ease_cubic(float t);
 

@@ -133,16 +133,103 @@ void state_init(FaceState &s) {
     s.glance_end_ms = 0;
     s.returned_to_baseline = true;  // start at baseline — no auto-return pending
 
-    s.caption[0] = 0;
-    s.caption_until_ms = 0;
+    state_clear_caption(s);
+}
+
+// Word-wrap helper. Returns line count.
+static int wrap_text(const char *input, char lines[][FaceState::MAX_CHARS_PER_LINE], int max_lines, int max_chars) {
+    int line_count = 0;
+    if (!input) return 0;
+    int len = 0;
+    while (input[len]) ++len;
+    int start = 0;
+    while (start < len && line_count < max_lines) {
+        // Skip leading spaces
+        while (start < len && input[start] == ' ') ++start;
+        if (start >= len) break;
+
+        int line_max_end = start + max_chars - 1;  // -1 for null terminator
+        if (line_max_end >= len) line_max_end = len;
+        int end = line_max_end;
+
+        // If we didn't hit the end of the string, try to break at the last space
+        if (end < len) {
+            int space = end;
+            while (space > start && input[space] != ' ') --space;
+            if (space > start) {
+                end = space;  // break at space
+            }
+            // else: no space found, hard-break at line_max_end
+        }
+
+        int line_len = end - start;
+        if (line_len > FaceState::MAX_CHARS_PER_LINE - 1) line_len = FaceState::MAX_CHARS_PER_LINE - 1;
+        for (int i = 0; i < line_len; ++i) lines[line_count][i] = input[start + i];
+        lines[line_count][line_len] = 0;
+        ++line_count;
+        start = end;
+    }
+    return line_count;
 }
 
 void state_set_caption(FaceState &s, const char *text, uint32_t duration_ms, uint32_t now_ms) {
-    if (!text) text = "";
-    int i = 0;
-    for (; text[i] && i < (int)sizeof(s.caption) - 1; ++i) s.caption[i] = text[i];
-    s.caption[i] = 0;
-    s.caption_until_ms = now_ms + duration_ms;
+    if (!text || !text[0]) {
+        state_clear_caption(s);
+        return;
+    }
+    s.caption_line_count = wrap_text(text, s.caption_lines, FaceState::MAX_LINES, FaceState::MAX_CHARS_PER_LINE);
+    s.caption_current_page = 0;
+    s.caption_live_mode = false;
+
+    // Pagination: each "page" shows 2 lines. Total pages = ceil(lines / 2).
+    int pages = (s.caption_line_count + 1) / 2;
+    if (pages < 1) pages = 1;
+
+    // Page duration: 3500ms per page, plus a 500ms buffer at the end.
+    uint32_t total = (uint32_t)pages * 3500 + 500;
+    if (total < duration_ms) total = duration_ms;  // honor explicit minimum
+    s.caption_until_ms = now_ms + total;
+    s.caption_page_advance_ms = now_ms + 3500;
+}
+
+void state_set_caption_live(FaceState &s, const char *text, uint32_t now_ms) {
+    if (!text || !text[0]) {
+        state_clear_caption(s);
+        return;
+    }
+    s.caption_line_count = wrap_text(text, s.caption_lines, FaceState::MAX_LINES, FaceState::MAX_CHARS_PER_LINE);
+    s.caption_live_mode = true;
+    // In live mode we always show the LAST 2 lines, so "page" is just the last index.
+    s.caption_current_page = (s.caption_line_count > 2) ? (s.caption_line_count - 2) : 0;
+    if (s.caption_current_page % 2 != 0) {
+        // For consistency with non-live page math, snap to even index (but live mode reads it raw)
+    }
+    s.caption_until_ms = now_ms + 60000;  // 60s hold while typing
+    s.caption_page_advance_ms = 0;        // no auto-advance in live mode
+}
+
+void state_clear_caption(FaceState &s) {
+    s.caption_lines[0][0] = 0;
+    s.caption_line_count = 0;
+    s.caption_current_page = 0;
+    s.caption_until_ms = 0;
+    s.caption_page_advance_ms = 0;
+    s.caption_live_mode = false;
+}
+
+void state_tick_caption(FaceState &s, uint32_t now_ms) {
+    if (s.caption_line_count == 0 || s.caption_live_mode) return;
+    if (s.caption_page_advance_ms == 0) return;
+    if (now_ms < s.caption_page_advance_ms) return;
+    // Advance to next page (2 lines per page)
+    int next_page_start = s.caption_current_page + 2;
+    if (next_page_start < s.caption_line_count) {
+        s.caption_current_page = next_page_start;
+        s.caption_page_advance_ms = now_ms + 3500;
+    } else {
+        // No more pages — stop advancing (caption will expire on its own via caption_until_ms)
+        s.caption_page_advance_ms = 0;
+    }
 }
 
 void state_set_target_emotion(FaceState &s, EmotionId id, uint16_t color, uint32_t now_ms) {

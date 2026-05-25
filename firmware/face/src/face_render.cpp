@@ -1,5 +1,6 @@
 // firmware/face/src/face_render.cpp
 #include "face_render.h"
+#include "state.h"
 #include "Display_ST7701.h"
 
 static uint16_t *g_fb = nullptr;   // 480 * 480 RGB565 framebuffer (PSRAM)
@@ -370,7 +371,8 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
 }
 
 void face_render_state_with_caption(const EyePair &p, uint16_t color,
-                                    int glance_x_offset, const char *caption) {
+                                    int glance_x_offset,
+                                    const char *line1, const char *line2) {
     if (!g_fb) return;
     fb_fill(0x0000);
 
@@ -396,31 +398,30 @@ void face_render_state_with_caption(const EyePair &p, uint16_t color,
             fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
         }
 
-        // Eyes that have collapsed to a slit (sleepy, mid-blink, winked-shut)
-        // shouldn't show a pupil — Pip would look weirdly awake.
-        if (s.height < 30) return;
-
-        int pupil_rx = s.width  / 6;
-        int pupil_ry = s.height / 6;
-        int max_pupil_rx = (s.width  / 2) - 4;
-        int max_pupil_ry = (s.height / 2) - 4;
-        if (pupil_rx > max_pupil_rx) pupil_rx = max_pupil_rx;
-        if (pupil_ry > max_pupil_ry) pupil_ry = max_pupil_ry;
-        // If the eye is too thin for a visible pupil, skip it.
-        if (!(pupil_rx < 3 || pupil_ry < 3)) {
-            int max_shift_x = (s.width  / 2) - pupil_rx - 4;
-            if (max_shift_x < 0) max_shift_x = 0;
-            int max_shift_y = (s.height / 2) - pupil_ry - 4;
-            if (max_shift_y < 0) max_shift_y = 0;
-            int desired_shift = gaze_offset;
-            if (desired_shift >  max_shift_x) desired_shift =  max_shift_x;
-            if (desired_shift < -max_shift_x) desired_shift = -max_shift_x;
-            int px = cx + desired_shift;
-            int py = cy - (max_shift_y / 4);
-            fb_fill_ellipse(px, py, pupil_rx, pupil_ry, pupil_color);
+        // Hide pupils on collapsed eyes (sleepy, mid-blink, winked-shut).
+        if (s.height < 30) {
+            // skip pupil
+        } else {
+            int pupil_rx = s.width  / 6;
+            int pupil_ry = s.height / 6;
+            int max_pupil_rx = (s.width  / 2) - 4;
+            int max_pupil_ry = (s.height / 2) - 4;
+            if (pupil_rx > max_pupil_rx) pupil_rx = max_pupil_rx;
+            if (pupil_ry > max_pupil_ry) pupil_ry = max_pupil_ry;
+            if (pupil_rx >= 3 && pupil_ry >= 3) {
+                int max_shift_x = (s.width  / 2) - pupil_rx - 4;
+                if (max_shift_x < 0) max_shift_x = 0;
+                int max_shift_y = (s.height / 2) - pupil_ry - 4;
+                if (max_shift_y < 0) max_shift_y = 0;
+                int desired_shift = gaze_offset;
+                if (desired_shift >  max_shift_x) desired_shift =  max_shift_x;
+                if (desired_shift < -max_shift_x) desired_shift = -max_shift_x;
+                int px = cx + desired_shift;
+                int py = cy - (max_shift_y / 4);
+                fb_fill_ellipse(px, py, pupil_rx, pupil_ry, pupil_color);
+            }
         }
 
-        // Brow
         if (s.brow_width >= 6 && s.brow_height >= 3) {
             int bx = cx;
             int by = cy + s.brow_y_offset;
@@ -437,54 +438,68 @@ void face_render_state_with_caption(const EyePair &p, uint16_t color,
     draw_eye(p.left,  p.left.tilt_left,   glance_x_offset);
     draw_eye(p.right, p.right.tilt_right, glance_x_offset);
 
-    // Caption overlay (drawn AFTER the face so it sits on top).
-    if (caption && caption[0]) {
-        const int scale   = 2;          // 5x7 font → 10x14 per char
-        const int char_w  = (CHAR_WIDTH + CHAR_SPACING) * scale;
-        const int char_h  = CHAR_HEIGHT * scale;
-        const int max_chars = 36;       // truncate long captions to single line
-        char truncated[max_chars + 1];
-        int len = 0;
-        for (const char *p2 = caption; *p2 && len < max_chars; ++p2, ++len) {
-            truncated[len] = *p2;
+    // Caption overlay — up to 2 lines.
+    bool has_l1 = line1 && line1[0];
+    bool has_l2 = line2 && line2[0];
+    if (has_l1 || has_l2) {
+        const int scale = 2;
+        const int char_w = (CHAR_WIDTH + CHAR_SPACING) * scale;
+        const int char_h = CHAR_HEIGHT * scale;
+        const int line_gap = 8;   // px between lines
+        int num_lines = (has_l1 ? 1 : 0) + (has_l2 ? 1 : 0);
+
+        // Truncate each line to fit
+        char l1[FaceState::MAX_CHARS_PER_LINE];
+        char l2[FaceState::MAX_CHARS_PER_LINE];
+        l1[0] = 0; l2[0] = 0;
+        if (has_l1) {
+            int i = 0;
+            for (; line1[i] && i < FaceState::MAX_CHARS_PER_LINE - 1; ++i) l1[i] = line1[i];
+            l1[i] = 0;
         }
-        truncated[len] = 0;
+        if (has_l2) {
+            int i = 0;
+            for (; line2[i] && i < FaceState::MAX_CHARS_PER_LINE - 1; ++i) l2[i] = line2[i];
+            l2[i] = 0;
+        }
 
-        int text_w = fb_string_width(truncated, scale);
-        int box_w  = text_w + 32;            // padding
-        if (box_w > 400) box_w = 400;        // higher up = circle is wider, can be bigger
-        int box_h  = char_h + 18;
-        int box_x  = (FACE_WIDTH - box_w) / 2;
-        // Moved up ~40px from before; leaves room for a future second line above
-        // while keeping the existing single line well inside the round display.
-        int box_y  = 310;
+        int w1 = fb_string_width(l1, scale);
+        int w2 = fb_string_width(l2, scale);
+        int text_w = (w1 > w2) ? w1 : w2;
+        int box_w  = text_w + 32;
+        if (box_w > 400) box_w = 400;
+        int text_block_h = num_lines * char_h + (num_lines > 1 ? line_gap : 0);
+        int box_h = text_block_h + 18;
+        int box_x = (FACE_WIDTH - box_w) / 2;
+        // 2-line box is taller (66px); position so the box stays well within the circle.
+        // Keep top edge around y=295 so a 2-line box ends at y~361 (still inside ~210px half-width circle).
+        int box_y = 295;
 
-        // Dark rounded box (dark blueish-grey).
+        // Dark rounded box
         fb_fill_round_rect(box_x, box_y, box_w, box_h, 12, 0x18C3);
 
-        // Thin colored border using the eye color — top and bottom strips.
-        const int border = 2;
-        for (int by2 = 0; by2 < border; ++by2) {
-            for (int bx2 = 0; bx2 < box_w; ++bx2) {
-                int yy = box_y + by2;
-                int xx = box_x + bx2;
-                if (yy >= 0 && yy < FACE_HEIGHT && xx >= 0 && xx < FACE_WIDTH)
-                    g_fb[yy * FACE_WIDTH + xx] = color;
-            }
-        }
-        for (int by2 = box_h - border; by2 < box_h; ++by2) {
-            for (int bx2 = 0; bx2 < box_w; ++bx2) {
-                int yy = box_y + by2;
-                int xx = box_x + bx2;
-                if (yy >= 0 && yy < FACE_HEIGHT && xx >= 0 && xx < FACE_WIDTH)
-                    g_fb[yy * FACE_WIDTH + xx] = color;
-            }
-        }
+        // Border top/bottom in eye color
+        int border = 2;
+        for (int by2 = 0; by2 < border; ++by2)
+            for (int bx2 = 0; bx2 < box_w; ++bx2)
+                if (box_y + by2 >= 0 && box_y + by2 < FACE_HEIGHT && box_x + bx2 >= 0 && box_x + bx2 < FACE_WIDTH)
+                    g_fb[(box_y + by2) * FACE_WIDTH + (box_x + bx2)] = color;
+        for (int by2 = box_h - border; by2 < box_h; ++by2)
+            for (int bx2 = 0; bx2 < box_w; ++bx2)
+                if (box_y + by2 >= 0 && box_y + by2 < FACE_HEIGHT && box_x + bx2 >= 0 && box_x + bx2 < FACE_WIDTH)
+                    g_fb[(box_y + by2) * FACE_WIDTH + (box_x + bx2)] = color;
 
-        // White text centered in the box.
-        int text_x = box_x + (box_w - text_w) / 2;
-        int text_y = box_y + (box_h - char_h) / 2;
-        fb_draw_string(text_x, text_y, truncated, scale, 0xFFFF);
+        // Render the lines centered, stacked
+        int text_y_top = box_y + (box_h - text_block_h) / 2;
+        if (has_l1) {
+            int text_x = box_x + (box_w - w1) / 2;
+            fb_draw_string(text_x, text_y_top, l1, scale, 0xFFFF);
+        }
+        if (has_l2) {
+            int text_x = box_x + (box_w - w2) / 2;
+            int y2 = text_y_top + (has_l1 ? (char_h + line_gap) : 0);
+            fb_draw_string(text_x, y2, l2, scale, 0xFFFF);
+        }
     }
 
     fb_push_to_lcd();
