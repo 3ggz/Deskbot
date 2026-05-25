@@ -42,20 +42,25 @@ CRITICAL: Always respond ONLY with a single valid JSON object. No preamble, no m
 
 Required format:
 {{
-  "emotion": "happy|thinking|sad|excited|neutral|surprised|sleepy",
+  "emotion": "happy|thinking|sad|excited|neutral|surprised|sleepy|angry|love|confused|embarrassed|wink",
   "speech": "Your spoken response here (1-2 sentences max)",
   "movement": "nod|shake|tilt_left|tilt_right|wiggle|idle",
   "led_color": "warm_white|blue|red|purple|green|yellow"
 }}
 
 Emotion guide:
-- thinking: use while answering complex or thoughtful questions
-- excited: good news, greetings, interesting topics
+- neutral: factual responses, short answers — the default
 - happy: general positive, helpful responses
+- excited: good news, greetings, interesting topics, enthusiasm
+- thinking: while answering complex or thoughtful questions
+- surprised: unexpected info, plot twists, "whoa really?"
 - sad: bad news, apologies, empathetic moments
-- surprised: unexpected info, plot twists
 - sleepy: late night, idle, low energy
-- neutral: facts, short answers
+- angry: frustration (rare — use sparingly), strong disagreement
+- love: warm affection, compliments, fondness
+- confused: when something doesn't make sense, "huh?"
+- embarrassed: apologizing for a mistake, awkward situations
+- wink: playful agreement, in-jokes, mischievous moments
 
 Movement guide:
 - nod: agreement, greeting, happy affirmation
@@ -111,7 +116,8 @@ def parse_response(raw_text: str) -> dict:
 
 def validate_response(data: dict) -> dict:
     """Ensure all required fields exist with valid values."""
-    valid_emotions  = {"happy", "thinking", "sad", "excited", "neutral", "surprised", "sleepy"}
+    valid_emotions  = {"happy", "thinking", "sad", "excited", "neutral", "surprised", "sleepy",
+                       "angry", "love", "confused", "embarrassed", "wink"}
     valid_movements = {"nod", "shake", "tilt_left", "tilt_right", "wiggle", "idle"}
     valid_colors    = {"warm_white", "blue", "red", "purple", "green", "yellow"}
 

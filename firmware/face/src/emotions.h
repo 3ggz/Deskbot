@@ -1,5 +1,5 @@
 // firmware/face/src/emotions.h
-// 7 emotion shapes for Pip's face. Values from the design spec
+// 12 emotion shapes for Pip's face. Values from the design spec
 // (docs/superpowers/specs/2026-05-23-stage-2-face-design.md).
 #pragma once
 #include <Arduino.h>
@@ -28,11 +28,17 @@ enum EmotionId : uint8_t {
     EMO_THINKING,
     EMO_SAD,
     EMO_SLEEPY,
+    EMO_ANGRY,
+    EMO_LOVE,
+    EMO_CONFUSED,
+    EMO_EMBARRASSED,
+    EMO_WINK,
     EMOTION_COUNT
 };
 
 static const char* EMOTION_NAMES[EMOTION_COUNT] = {
-    "neutral", "happy", "excited", "surprised", "thinking", "sad", "sleepy"
+    "neutral", "happy", "excited", "surprised", "thinking", "sad", "sleepy",
+    "angry", "love", "confused", "embarrassed", "wink"
 };
 
 // Symmetric pair: index [emo].left and [emo].right
@@ -42,24 +48,50 @@ static const EyePair EMOTIONS[EMOTION_COUNT] = {
     // neutral — default rounded bars, flat brows above
     { {108, 162, 42, 42, 42, 42, -110, 0, 0, 0,   80, 14, -110,   0},
       {108, 162, 42, 42, 42, 42,  110, 0, 0, 0,   80, 14, -110,   0} },
-    // happy — smile arches with relaxed flat brows
-    { {126,  66, 120, 120, 18, 18, -108, -20, 0, 0,   80, 14,  -70,   0},
-      {126,  66, 120, 120, 18, 18,  108, -20, 0, 0,   80, 14,  -70,   0} },
-    // excited — taller eyes, brows raised higher
-    { {132, 186, 54, 54, 54, 54, -102, 0, 0, 0,   90, 16, -130,   0},
-      {132, 186, 54, 54, 54, 54,  102, 0, 0, 0,   90, 16, -130,   0} },
-    // surprised — round eyes, brows way up
-    { {150, 150, 75, 75, 75, 75,  -96, 0, 0, 0,   90, 14, -135,   0},
-      {150, 150, 75, 75, 75, 75,   96, 0, 0, 0,   90, 14, -135,   0} },
-    // thinking — left brow lower, right brow raised — asymmetric quizzical look
-    { {108, 162, 42, 42, 42, 42, -114, 0, -15, 0,   80, 14, -100,   0},
-      {108, 132, 42, 42, 42, 42,  114, 0,   0, -5,   80, 14, -130,   0} },
-    // sad — frown arches, inner brow ends RAISED (classic sad upside-down V)
-    { {126,  66, 18, 18, 120, 120, -108, 0, 10, 0,   80, 14,  -60, -15},
-      {126,  66, 18, 18, 120, 120,  108, 0, 0, -10,  80, 14,  -60,  15} },
-    // sleepy — collapsed slits, brows low and thin
-    { {132,  24, 12, 12, 12, 12, -102, 0, 0, 0,   70, 10,  -30,   0},
-      {132,  24, 12, 12, 12, 12,  102, 0, 0, 0,   70, 10,  -30,   0} },
+
+    // happy — smile arches; brows lifted relaxed-high, slight outer-up tilt (warm/friendly)
+    { {126,  66, 120, 120, 18, 18, -108, -20, 0, 0,   86, 14, -125,  -6},
+      {126,  66, 120, 120, 18, 18,  108, -20, 0, 0,   86, 14, -125,   6} },
+
+    // excited — taller eyes, brows raised higher with slight excited tilt
+    { {132, 186, 54, 54, 54, 54, -102, 0, 0, 0,   90, 16, -135,  -3},
+      {132, 186, 54, 54, 54, 54,  102, 0, 0, 0,   90, 16, -135,   3} },
+
+    // surprised — round eyes, brows way up + wider
+    { {150, 150, 75, 75, 75, 75,  -96, 0, 0, 0,  100, 14, -145,   0},
+      {150, 150, 75, 75, 75, 75,   96, 0, 0, 0,  100, 14, -145,   0} },
+
+    // thinking — left brow noticeably lower, right brow exaggerated higher (clearly asymmetric)
+    { {108, 162, 42, 42, 42, 42, -114, 0, -15, 0,   80, 14,  -95,   0},
+      {108, 132, 42, 42, 42, 42,  114, 0,   0, -5,  80, 14, -145,   0} },
+
+    // sad — frown arches, inner brow ends RAISED (upside-down V)
+    { {126,  66, 18, 18, 120, 120, -108, 0, 10, 0,   84, 14,  -75, -18},
+      {126,  66, 18, 18, 120, 120,  108, 0, 0, -10,  84, 14,  -75,  18} },
+
+    // sleepy — collapsed slits, brows low/thin/relaxed
+    { {132,  24, 12, 12, 12, 12, -102, 0, 0, 0,   70, 10,  -50,   0},
+      {132,  24, 12, 12, 12, 12,  102, 0, 0, 0,   70, 10,  -50,   0} },
+
+    // angry — narrowed eyes; brows angled INWARD-DOWN (opposite of sad — inner edges LOW)
+    { {120,  90, 30, 30, 30, 30, -108, 5, -8, 0,   88, 16,  -85,  18},
+      {120,  90, 30, 30, 30, 30,  108, 5, 0, 8,    88, 16,  -85, -18} },
+
+    // love — wide bright eyes (slightly rounder than surprised), brows lifted gently
+    { {138, 138, 70, 70, 70, 70, -100, -8, 0, 0,   84, 14, -130,  -8},
+      {138, 138, 70, 70, 70, 70,  100, -8, 0, 0,   84, 14, -130,   8} },
+
+    // confused — one brow MUCH higher than the other (more extreme than thinking)
+    { {108, 152, 42, 42, 42, 42, -114, 0,  5, 0,   82, 14,  -75,   8},
+      {108, 132, 42, 42, 42, 42,  114, 0,  0, 0,   82, 14, -155, -10} },
+
+    // embarrassed — smaller eyes looking slightly down; brows lifted "innocently"
+    { { 96, 130, 38, 38, 38, 38, -106, 12, 0, 0,   82, 14, -120,  -8},
+      { 96, 130, 38, 38, 38, 38,  106, 12, 0, 0,   82, 14, -120,   8} },
+
+    // wink — LEFT eye collapsed to slit (winking), RIGHT eye normal-happy
+    { {126,  16, 8,  8,  8,  8,  -108, 0,  0, 0,   86, 14, -125,  -6},
+      {126,  66, 120,120,18, 18,  108, -20,0, 0,   86, 14, -125,   6} },
 };
 
 // Look up an emotion id by name string (returns -1 if unknown).
