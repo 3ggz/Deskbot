@@ -152,7 +152,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v1.4");
+    Serial.println("READY v1.5");
 }
 
 void loop() {
