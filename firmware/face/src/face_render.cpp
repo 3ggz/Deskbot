@@ -316,6 +316,11 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
         //    (height collapses) and breathing (subtle ±5% oscillation) naturally
         //    affect the pupil too. Vertical ellipse: roughly 1/3 the eye width
         //    by 1/2 the eye height as a baseline.
+
+        // Eyes that have collapsed to a slit (sleepy, mid-blink, winked-shut)
+        // shouldn't show a pupil — Pip would look weirdly awake.
+        if (s.height < 30) return;
+
         int pupil_rx = s.width  / 6;
         int pupil_ry = s.height / 6;
 
@@ -325,8 +330,7 @@ void face_render_state(const EyePair &p, uint16_t color, int glance_x_offset) {
         if (pupil_rx > max_pupil_rx) pupil_rx = max_pupil_rx;
         if (pupil_ry > max_pupil_ry) pupil_ry = max_pupil_ry;
 
-        // If the eye is too thin or too short for a visible pupil, skip it
-        // (clean blink — eye becomes a slit with no floating pupil).
+        // If the eye is too thin for a visible pupil, skip it.
         if (pupil_rx < 3 || pupil_ry < 3) return;
 
         // 3. Clamp pupil position so it stays inside the eye even at peak gaze.
@@ -392,15 +396,18 @@ void face_render_state_with_caption(const EyePair &p, uint16_t color,
             fb_fill_round_rect(cx - s.width / 2, cy - s.height / 2, s.width, s.height, r, color);
         }
 
+        // Eyes that have collapsed to a slit (sleepy, mid-blink, winked-shut)
+        // shouldn't show a pupil — Pip would look weirdly awake.
+        if (s.height < 30) return;
+
         int pupil_rx = s.width  / 6;
         int pupil_ry = s.height / 6;
         int max_pupil_rx = (s.width  / 2) - 4;
         int max_pupil_ry = (s.height / 2) - 4;
         if (pupil_rx > max_pupil_rx) pupil_rx = max_pupil_rx;
         if (pupil_ry > max_pupil_ry) pupil_ry = max_pupil_ry;
-        if (pupil_rx < 3 || pupil_ry < 3) {
-            // skip pupil — clean blink
-        } else {
+        // If the eye is too thin for a visible pupil, skip it.
+        if (!(pupil_rx < 3 || pupil_ry < 3)) {
             int max_shift_x = (s.width  / 2) - pupil_rx - 4;
             if (max_shift_x < 0) max_shift_x = 0;
             int max_shift_y = (s.height / 2) - pupil_ry - 4;
