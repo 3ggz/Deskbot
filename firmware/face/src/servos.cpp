@@ -275,6 +275,35 @@ void servo_idle() {
     start_script(s, 1, millis());
 }
 
+void servo_flinch_back() {
+    // Quick jerk up + small recoil back to center
+    Step s[] = {
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG - 22, 130},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG - 10, 200},
+        {SERVO_CENTER_DEG, SERVO_CENTER_DEG,      400},
+    };
+    start_script(s, 3, millis());
+}
+
+void servo_flinch_right() {
+    // Jerk to the right + slight up
+    Step s[] = {
+        {SERVO_CENTER_DEG + 25, SERVO_CENTER_DEG - 12, 130},
+        {SERVO_CENTER_DEG + 12, SERVO_CENTER_DEG - 4,  200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      400},
+    };
+    start_script(s, 3, millis());
+}
+
+void servo_flinch_left() {
+    Step s[] = {
+        {SERVO_CENTER_DEG - 25, SERVO_CENTER_DEG - 12, 130},
+        {SERVO_CENTER_DEG - 12, SERVO_CENTER_DEG - 4,  200},
+        {SERVO_CENTER_DEG,      SERVO_CENTER_DEG,      400},
+    };
+    start_script(s, 3, millis());
+}
+
 void servos_tick(uint32_t now_ms) {
     // Pan
     if (pan_step_dur_ms > 0) {

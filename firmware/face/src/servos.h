@@ -22,6 +22,10 @@ void servo_look_around();   // slow contemplative scan of all four corners
 void servo_bow();           // gracious bow: deep tilt-down, hold, return
 void servo_idle();          // return to center
 
+void servo_flinch_back();
+void servo_flinch_left();
+void servo_flinch_right();
+
 void servos_tick(uint32_t now_ms);  // call every render frame
 
 int servo_pan_current();

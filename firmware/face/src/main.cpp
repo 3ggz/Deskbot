@@ -9,6 +9,7 @@
 #include "serial_parser.h"
 #include "servos.h"
 #include "state.h"
+#include "touch.h"
 
 static FaceState g_state;
 
@@ -167,11 +168,63 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v2.1");
+    touch_init();
+    Serial.println("READY v2.2");
+}
+
+static void trigger_flinch(int x, int y) {
+    // Pick a random variant — each is emotion + caption + servo recoil.
+    static const struct {
+        EmotionId emotion;
+        const char *caption;
+        const char *color_hex;
+        void (*servo_fn)();
+    } VARIANTS[] = {
+        { EMO_SURPRISED, "Hey!",    "#FFFFFF", servo_flinch_right },
+        { EMO_SURPRISED, "Oof!",    "#FFEE66", servo_flinch_back  },
+        { EMO_SURPRISED, "Eek!",    "#FFAAFF", servo_flinch_left  },
+        { EMO_CONFUSED,  "What?!",  "#AAEEFF", servo_flinch_back  },
+        { EMO_ANGRY,     "Quit it!","#FF6644", servo_flinch_right },
+        { EMO_HAPPY,     "Hehe!",   "#88FF88", servo_flinch_left  },
+    };
+    const int N = sizeof(VARIANTS) / sizeof(VARIANTS[0]);
+    int idx = (int)random(N);
+    const auto &v = VARIANTS[idx];
+
+    // Parse the hex color into RGB565
+    long col = strtol(v.color_hex + 1, nullptr, 16);
+    uint8_t r = (col >> 16) & 0xFF, g = (col >> 8) & 0xFF, b = col & 0xFF;
+    uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+
+    state_set_target_emotion(g_state, v.emotion, rgb565, millis());
+    state_set_caption(g_state, v.caption, 2200, millis());
+    v.servo_fn();
+
+    Serial.print("LOG TOUCH "); Serial.print(x);
+    Serial.print(",");          Serial.println(y);
 }
 
 void loop() {
     parser_poll();
+
+    // Touch polling — sub-100ms response on rising edge.
+    static bool was_touched = false;
+    static uint32_t last_flinch_ms = 0;
+    static const uint32_t FLINCH_COOLDOWN_MS = 1500;
+    static uint32_t next_touch_poll_ms = 0;
+    if (millis() >= next_touch_poll_ms) {
+        next_touch_poll_ms = millis() + 40;  // poll every ~40ms (25 Hz — fast enough)
+        int tx = 0, ty = 0;
+        bool touched_now = touch_poll(&tx, &ty);
+        if (touched_now && !was_touched) {
+            if ((millis() - last_flinch_ms) > FLINCH_COOLDOWN_MS) {
+                trigger_flinch(tx, ty);
+                last_flinch_ms = millis();
+            }
+        }
+        was_touched = touched_now;
+    }
+
     state_update_animation(g_state, millis());
     servos_tick(millis());
     int gx = state_current_pupil_offset(g_state, millis());
