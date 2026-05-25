@@ -9,6 +9,9 @@
 import os
 import json
 import logging
+import random
+import threading
+import time
 from anthropic import Anthropic
 from face import Face
 
@@ -79,6 +82,24 @@ LED color guide:
 - red: alert, important, sad
 
 Never break character. Never output anything outside the JSON object.
+"""
+
+DREAM_PROMPT = """You are Pip, a small desktop companion robot, currently sleeping.
+You're mumbling in your sleep — talking out a dream, a half-remembered fact, an absurd
+thought, or a quiet observation.
+
+Output ONE short sentence, under 12 words. It should feel sleepy and amusing — playful,
+silly, mysterious, or oddly profound. NO preamble. NO quotes. NO JSON. Just the text.
+
+Examples of the vibe:
+- The clouds are made of cheese tonight...
+- Octopuses don't carry receipts.
+- mmm... seven... no, eight...
+- I was Napoleon in 1923. Was I?
+- Why does the toaster judge me?
+- A perfect square of marshmallows.
+- Trees know all my passwords.
+- bleep... bloop... not now mom...
 """
 
 # ─── Response Parsing ──────────────────────────────────────
@@ -155,6 +176,12 @@ class Brain:
         log.info(f"Brain initialized. Model: {AI_MODEL}. Bot name: {BOT_NAME}. "
                  f"Face: {'connected' if self.face.is_connected() else 'offline'}")
 
+        # Idle / dream tracking
+        self.last_input_time = time.time()
+        self._dream_stop = threading.Event()
+        self._dream_thread = threading.Thread(target=self._dream_loop, daemon=True)
+        self._dream_thread.start()
+
     def think(self, user_input: str) -> dict:
         """
         Send user input to the AI and return a structured response dict.
@@ -163,6 +190,7 @@ class Brain:
         Returns: {emotion, speech, movement, led_color}
         """
         log.debug(f"User: {user_input}")
+        self.last_input_time = time.time()
 
         # Add user message to history
         self.history.append({
@@ -208,6 +236,40 @@ class Brain:
         except Exception as e:
             log.error(f"API call failed: {e}")
             return DEFAULT_RESPONSE.copy()
+
+    def _dream_loop(self):
+        """Background thread: when Pip has been idle a while, generate dreamy
+        captions periodically. Runs forever until process exit."""
+        DREAM_IDLE_THRESHOLD_S = 60     # don't dream until idle this long
+        DREAM_MIN_INTERVAL_S   = 25
+        DREAM_MAX_INTERVAL_S   = 50
+
+        while not self._dream_stop.is_set():
+            # Wait a random amount of time
+            wait_s = random.uniform(DREAM_MIN_INTERVAL_S, DREAM_MAX_INTERVAL_S)
+            if self._dream_stop.wait(timeout=wait_s):
+                return  # stop requested
+
+            # Only dream if idle long enough
+            idle_s = time.time() - self.last_input_time
+            if idle_s < DREAM_IDLE_THRESHOLD_S:
+                continue
+
+            try:
+                response = self.client.messages.create(
+                    model=AI_MODEL,
+                    max_tokens=60,
+                    system=DREAM_PROMPT,
+                    messages=[{"role": "user", "content": "(generate one dream mumble)"}],
+                )
+                dream_text = response.content[0].text.strip().strip('"').strip("'")
+                if dream_text:
+                    log.info(f"Pip dreams: {dream_text}")
+                    if self.face is not None:
+                        self.face.say(dream_text)
+            except Exception as e:
+                # Network blip, rate limit, whatever — log and keep going.
+                log.warning(f"Dream generation failed: {e}")
 
     def clear_history(self):
         """Reset conversation context."""
@@ -258,6 +320,9 @@ def terminal_chat():
                 print("\nShutting down...")
                 break
     finally:
+        # Stop dream thread before closing face
+        if hasattr(brain, '_dream_stop'):
+            brain._dream_stop.set()
         if brain.face is not None:
             brain.face.close()
 
