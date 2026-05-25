@@ -102,10 +102,12 @@ int servo_get_pan_trim()  { return pan_trim_deg; }
 int servo_get_tilt_trim() { return tilt_trim_deg; }
 
 void servo_pan_to(int angle_deg) {
+    script_len = 0;  // cancel any active script — explicit positioning wins
     pan_target_deg = clamp(angle_deg, pan_min_deg, pan_max_deg);
 }
 
 void servo_tilt_to(int angle_deg) {
+    script_len = 0;
     tilt_target_deg = clamp(angle_deg, tilt_min_deg, tilt_max_deg);
 }
 
@@ -197,3 +199,5 @@ void servos_tick(uint32_t now_ms) {
 
 int servo_pan_current()  { return pan_current_deg; }
 int servo_tilt_current() { return tilt_current_deg; }
+int servo_pan_target()   { return pan_target_deg; }
+int servo_tilt_target()  { return tilt_target_deg; }

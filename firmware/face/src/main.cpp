@@ -67,13 +67,15 @@ static void handle_command(const char *line) {
     } else if (strncmp(line, "PAN ", 4) == 0) {
         int deg = atoi(line + 4);
         servo_pan_to(deg);
-        Serial.print("LOG pan target="); Serial.println(deg);
+        Serial.print("LOG pan requested="); Serial.print(deg);
+        Serial.print(" clamped_target="); Serial.println(servo_pan_target());
         Serial.println("OK");
         return;
     } else if (strncmp(line, "TILT ", 5) == 0) {
         int deg = atoi(line + 5);
         servo_tilt_to(deg);
-        Serial.print("LOG tilt target="); Serial.println(deg);
+        Serial.print("LOG tilt requested="); Serial.print(deg);
+        Serial.print(" clamped_target="); Serial.println(servo_tilt_target());
         Serial.println("OK");
         return;
     } else if (strncmp(line, "SERVO_LIMITS ", 13) == 0) {
@@ -150,7 +152,7 @@ void setup() {
     state_init(g_state);
     servos_init();
     parser_setup(handle_command);
-    Serial.println("READY v1.1");
+    Serial.println("READY v1.2");
 }
 
 void loop() {

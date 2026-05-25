@@ -23,6 +23,8 @@ void servos_tick(uint32_t now_ms);  // call every render frame
 
 int servo_pan_current();
 int servo_tilt_current();
+int servo_pan_target();
+int servo_tilt_target();
 
 // Live tuning API
 void servo_set_limits(int pan_min, int pan_max, int tilt_min, int tilt_max);
