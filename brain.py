@@ -15,6 +15,7 @@ import threading
 import time
 from anthropic import Anthropic
 from face import Face
+from display import Display
 
 # Linux-only character-by-character input. Falls back gracefully on Windows.
 try:
@@ -98,17 +99,22 @@ try:
         ANTHROPIC_API_KEY, AI_MODEL, AI_MAX_TOKENS,
         AI_TEMPERATURE, BOT_NAME,
         FACE_SERIAL_PORT, FACE_SERIAL_BAUD, LED_COLORS_HEX,
+        DISPLAY_SPI_BUS, DISPLAY_SPI_DEVICE, DISPLAY_DC_PIN, DISPLAY_RST_PIN,
     )
 except ImportError:
     # Fallback defaults if run standalone
-    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-    AI_MODEL          = "claude-haiku-4-5"
-    AI_MAX_TOKENS     = 256
-    AI_TEMPERATURE    = 0.8
-    BOT_NAME          = "Pip"
-    FACE_SERIAL_PORT  = "/dev/ttyACM0"
-    FACE_SERIAL_BAUD  = 115200
-    LED_COLORS_HEX    = {"warm_white": "#FFDCB4"}
+    ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
+    AI_MODEL           = "claude-haiku-4-5"
+    AI_MAX_TOKENS      = 256
+    AI_TEMPERATURE     = 0.8
+    BOT_NAME           = "Pip"
+    FACE_SERIAL_PORT   = "/dev/ttyACM0"
+    FACE_SERIAL_BAUD   = 115200
+    LED_COLORS_HEX     = {"warm_white": "#FFDCB4"}
+    DISPLAY_SPI_BUS    = 0
+    DISPLAY_SPI_DEVICE = 0
+    DISPLAY_DC_PIN     = 25
+    DISPLAY_RST_PIN    = 24
 
 # ─── System Prompt ─────────────────────────────────────────
 SYSTEM_PROMPT = f"""You are {BOT_NAME}, a small friendly desktop robot companion.
@@ -251,8 +257,15 @@ class Brain:
         self.client = Anthropic(api_key=ANTHROPIC_API_KEY)
         self.history = []  # Conversation history for multi-turn context
         self.face = Face(port=FACE_SERIAL_PORT, baud=FACE_SERIAL_BAUD)
+        self.display = Display(
+            spi_bus=DISPLAY_SPI_BUS,
+            spi_device=DISPLAY_SPI_DEVICE,
+            dc_pin=DISPLAY_DC_PIN,
+            rst_pin=DISPLAY_RST_PIN,
+        )
         log.info(f"Brain initialized. Model: {AI_MODEL}. Bot name: {BOT_NAME}. "
-                 f"Face: {'connected' if self.face.is_connected() else 'offline'}")
+                 f"Face: {'connected' if self.face.is_connected() else 'offline'}. "
+                 f"Display: {'connected' if self.display.is_connected() else 'offline'}.")
 
         # Idle / dream tracking
         self.last_input_time = time.time()
@@ -309,6 +322,12 @@ class Brain:
 
             # Show the spoken text as a caption on the face
             self.face.say(parsed["speech"])
+
+            # Mirror to the rectangular history display
+            self.display.add_message("user", user_input)
+            self.display.add_message("pip", parsed["speech"])
+            self.display.update_status(parsed["emotion"], color_hex)
+
             return parsed
 
         except Exception as e:
@@ -412,6 +431,8 @@ def terminal_chat():
             brain._dream_stop.set()
         if brain.face is not None:
             brain.face.close()
+        if hasattr(brain, 'display') and brain.display is not None:
+            brain.display.close()
 
 
 if __name__ == "__main__":

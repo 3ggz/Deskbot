@@ -131,3 +131,9 @@ def _rgb_to_hex(rgb):
 
 # Derived from LED_COLORS above — sent to the face as part of EMOTION commands
 LED_COLORS_HEX = {name: _rgb_to_hex(rgb) for name, rgb in LED_COLORS.items()}
+
+# ─── Conversation History Display (Hosyond 4.0" ILI9486 SPI, 480x320) ──────
+DISPLAY_SPI_BUS    = 0
+DISPLAY_SPI_DEVICE = 0       # CE0 — chip select pin 24 on Pi
+DISPLAY_DC_PIN     = 25      # data/command select
+DISPLAY_RST_PIN    = 24      # reset
