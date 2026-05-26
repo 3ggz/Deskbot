@@ -1,6 +1,6 @@
 // firmware/face/src/servos.h
 // Two-servo head control: pan (left/right) + tilt (up/down).
-// Drives SG90s on GPIO43 (pan) and GPIO44 (tilt) via the ESP32 LEDC peripheral.
+// Drives SG90s on GPIO43 (pan) and GPIO44 (tilt) via ESP32Servo / MCPWM.
 #pragma once
 #include <Arduino.h>
 
