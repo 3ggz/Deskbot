@@ -73,7 +73,7 @@ dtoverlay=i2s-mmap
 
 ---
 
-## DAC / Speaker — PCM5102 + CQRobot 3W Speaker — Stage 3
+## DAC / Speaker — PCM5102 + CQRobot 3W Speaker — Stage 3a (Paused)
 
 ```
 PCM5102 Pin → Pi Pin    (GPIO)
@@ -88,11 +88,44 @@ XSMT        → 3.3V      (unmute)
 ```
 Speaker wires → PCM5102 OUTL/OUTR or mono bridged output.
 
+**Status: PAUSED.** The PCM5102 wiring was tested and the DAC works, but the output level is too low to drive the CQRobot passive speaker at usable volume. The PCM5102 is a DAC, not an amplifier — it needs an amp stage between it and any passive speaker.
+
+**Recommended next step:** Add a MAX98357A I²S amplifier (~$5, widely available). It accepts I²S directly from the Pi and outputs amplified audio to the speaker. Alternatively, a powered USB speaker skips the DAC entirely.
+
 **Note:** Mic (INMP441) and DAC (PCM5102) share I²S bus pins. This is intentional — Pi 5 supports full-duplex I²S. Configure as a single soundcard. Resolve this properly in Stage 3 before soldering anything.
 
 ---
 
-## Servo Driver — PCA9685 (I²C) — Stage 4
+## Head Servos — SG90 on ESP32-S3 GPIO43/44 — Working Now
+
+The two head servos (pan and tilt) are wired directly to the ESP32-S3, not to the Pi or PCA9685.
+
+```
+Servo          → ESP32-S3 GPIO   → Signal wire color
+Pan (left/right)   GPIO 43          Orange/Yellow
+Tilt (up/down)     GPIO 44          Orange/Yellow
+```
+
+**Power wiring (both servos):**
+```
+Servo VCC (Red)  → 5V rail on the ESP32-S3-Touch-LCD-2.1 board
+Servo GND (Brown)→ GND (common with the ESP32 board)
+```
+
+**Important:** Both servos share the same 5V and GND rails on the board.
+The ESP32-S3-Touch-LCD-2.1 has through-hole pads on the UART JST connector area — GPIO43 and GPIO44 are the two data lines on that connector. Use dupont wires or solder directly.
+
+**Library:** ESP32Servo (MCPWM peripheral, not LEDC). LEDC was evaluated and found unreliable for servos on ESP32-S3. ESP32Servo uses MCPWM which generates clean, jitter-free PWM.
+
+**Default limits (tunable via SERVO_LIMITS command):**
+- Pan: 30°–150° (center 90°)
+- Tilt: 60°–120° (center 90°)
+
+---
+
+## Servo Driver — PCA9685 (I²C) — Stage 4.5 (Pending)
+
+**Note:** The current 2-servo pan-tilt setup does NOT use the PCA9685. It is parked for future multi-servo expansion (body wiggle, additional axes).
 
 ```
 PCA9685 Pin → Pi Pin    (GPIO)
@@ -106,14 +139,12 @@ V+          → External 5V supply (servo power — use breadboard PSU)
 Use the SunFounder BreadVolt or Arduino breadboard PSU for servo power.
 Common GND between Pi and servo PSU is required.
 
-**Servo connections to PCA9685:**
+**Future servo connections to PCA9685:**
 ```
-Channel 0 → Head pan servo (SG90)
-Channel 1 → Head tilt servo (SG90)
-Channel 2 → Body wiggle servo (SG90)
-Channel 3 → Spare SG90
+Channel 0 → Body wiggle servo (SG90)
+Channel 1 → Spare SG90
 ```
-**Library:** `adafruit-circuitpython-pca9685` + `adafruit-circuitpython-motor`
+**Library (when used):** `adafruit-circuitpython-pca9685` + `adafruit-circuitpython-motor`
 
 ---
 
@@ -166,26 +197,37 @@ If not detected: check SDA/SCL wiring and that I²C is enabled in raspi-config.
 **Buzzer on ESP32-S3-Touch-LCD-2.1:**
 The board has a piezo buzzer wired to TCA9554 EXIO_PIN8. The Waveshare demo confirms this. The firmware explicitly drives EXIO_PIN8 LOW on startup to keep it silent.
 
-If you hear intermittent buzzing after handling the board (especially after dropping it), that is a **hardware issue** — likely a cracked solder joint near the buzzer component — not a firmware bug. Inspect the board under magnification and reflow the buzzer solder joints if needed.
+If you hear intermittent buzzing after handling the board (especially after dropping it), that is a **hardware issue** — likely a cracked solder joint near the buzzer component — not a firmware bug. Inspect the board under magnification and reflow the buzzer solder joints if needed. This is a known failure mode after a board drop.
+
+**PCM5102 output level:**
+The PCM5102 is a DAC only — it has no amplifier stage. Line-level output is insufficient to drive a passive speaker at meaningful volume. Do not attempt to use PCM5102 → passive speaker without an amp in between (MAX98357A or equivalent). This lesson was learned during Stage 3a testing.
+
+**LEDC vs MCPWM for servos on ESP32-S3:**
+ESP32's LEDC peripheral was found unreliable for servo control on the ESP32-S3. Servos produced erratic behavior / jitter. Switching to the MCPWM peripheral via the ESP32Servo library resolved this completely. If you see servo jitter: this is the first thing to check.
 
 ---
 
 ## Full Wiring Checklist
 
-### Stage 2 (Face) — ready to run
+### Stage 2 (Face) — done
 - [x] ESP32-S3-Touch-LCD-2.1 USB-C connected to Pi USB-A
-- [x] Firmware flashed and confirmed `READY v0.7` on serial monitor
+- [x] Firmware flashed and confirmed `READY v2.4` on serial monitor
 - [x] face.py auto-connects on Pi at `/dev/ttyACM0`
+- [x] Pan servo (SG90) on GPIO43 — signal + 5V + GND
+- [x] Tilt servo (SG90) on GPIO44 — signal + 5V + GND
 
-### Stage 3 (Voice) — not yet
-- [ ] INMP441 wired, I²S driver configured
-- [ ] PCM5102 wired, speaker connected
+### Stage 3a (Audio Out) — paused, hardware needed
+- [x] PCM5102 wired to Pi I²S (BCK/LRCK/DIN)
+- [ ] Amplifier (MAX98357A or powered speaker) — **THIS IS THE BLOCKER**
 - [ ] Full-duplex soundcard configured in `/boot/config.txt`
 
-### Stage 4 (Movement) — not yet
+### Stage 3b (Audio In — Nano 33 BLE Sense remote) — not yet
+- [ ] Nano 33 firmware written (PDM mic capture → BLE or USB serial)
+- [ ] Pi-side audio_input.py consuming voice from Nano 33
+
+### Stage 4.5 (Extended Movement — PCA9685) — not yet
 - [ ] PCA9685 wired, servo PSU connected, common GND confirmed
-- [ ] Servos plugged into PCA9685 channels 0–3
-- [ ] Logic level shifter in place where needed
+- [ ] Servos plugged into PCA9685 channels 0+
 - [ ] i2cdetect shows 0x40 before running any servo code
 
 ### Stage 5 (LEDs/Polish) — not yet

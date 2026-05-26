@@ -77,7 +77,8 @@ Design requirements to filter by:
 ## Neck Mount — XiaoR Pan-Tilt Kit Integration
 
 The XiaoR pan-tilt bracket has M3 mounting holes on top.
-The robot head attaches to these holes with M3 screws.
+The robot head (ESP32-S3-Touch-LCD-2.1 board + round LCD) attaches to these holes with M3 screws.
+The board and LCD are a single unit — they mount together as one piece.
 
 For DIY head (PVC/plastic):
 1. Mark hole positions from bracket onto head bottom
@@ -85,8 +86,9 @@ For DIY head (PVC/plastic):
 3. Use M3 x 8mm screws + washers to secure
 
 Cable routing:
-- USB-C cable from ESP32-S3-Touch-LCD-2.1 routes through a slot in the head bottom
-- Servo wires from pan-tilt route to PCA9685 in body
+- USB-C cable from ESP32-S3-Touch-LCD-2.1 routes through a slot in the head bottom (Pi communication)
+- Servo signal wires (GPIO43/44) route from the ESP32 board back through the neck to keep slack manageable
+- Servo power (5V + GND) comes from the ESP32 board's power rails
 - All wires bundle through the neck column into the body shell
 
 ---
@@ -96,30 +98,34 @@ Cable routing:
 ```
 Body shell (top view):
 ┌─────────────────────────┐
-│  [PCM5102 DAC]          │
+│  [PCM5102 DAC + amp]    │  ← Stage 3a (needs amp, paused)
 │  [Speaker → grille →]   │
-│  [LED strip rim]        │
+│  [LED strip rim]        │  ← Stage 5
 │  [Cable bundle to Pi]   │
 └─────────────────────────┘
 ```
 
+**What lives in the robot head (ESP32-S3-Touch-LCD-2.1 board):**
+- Round LCD (the face)
+- Both SG90 servos mount to the XiaoR pan-tilt bracket below the head
+- The ESP32 board is the servo controller — servo wires stay near the head
+
 **What lives in the robot body:**
-- PCM5102 DAC board
+- PCM5102 DAC board + amplifier (when Stage 3a resumes)
 - Speaker (CQRobot 3W)
-- PCA9685 servo driver
-- LED strip (around the base rim)
+- PCA9685 servo driver (Stage 4.5, not yet used)
+- LED strip (around the base rim, Stage 5)
 
 **What lives in the Pi CanaKit case:**
 - Raspberry Pi 5 8GB
 - All main compute and power
 
-**Cable bundle between them:**
+**Cable bundle between robot body and Pi:**
 - USB-C (face display — ESP32-S3-Touch-LCD-2.1): 1 cable
-- I²S audio out (DAC): 3 wires
-- I²S audio in (mic): 4 wires
-- I²C (PCA9685): 2 wires + power
-- 5V + GND for servo PSU
-- USB or GPIO for LED strip
+- I²S audio out (DAC + amp): 3 wires (Stage 3a)
+- I²S audio in (mic): 4 wires (Stage 3b, or from Nano 33 via USB/BLE)
+- I²C (PCA9685): 2 wires + power (Stage 4.5)
+- USB or GPIO for LED strip (Stage 5)
 
 Use a **braided cable sleeve** over the cable bundle for a clean look.
 Route through the desk or along the back — keep the front clean.
