@@ -16,6 +16,7 @@ import time
 from anthropic import Anthropic
 from face import Face
 from display import Display
+from voice import Voice
 
 # Linux-only character-by-character input. Falls back gracefully on Windows.
 try:
@@ -100,6 +101,7 @@ try:
         AI_TEMPERATURE, BOT_NAME,
         FACE_SERIAL_PORT, FACE_SERIAL_BAUD, LED_COLORS_HEX,
         DISPLAY_SPI_BUS, DISPLAY_SPI_DEVICE, DISPLAY_DC_PIN, DISPLAY_RST_PIN,
+        OPENAI_API_KEY, TTS_MODEL, TTS_VOICE, TTS_PLAYBACK_CMD,
     )
 except ImportError:
     # Fallback defaults if run standalone
@@ -115,6 +117,10 @@ except ImportError:
     DISPLAY_SPI_DEVICE = 0
     DISPLAY_DC_PIN     = 25
     DISPLAY_RST_PIN    = 24
+    OPENAI_API_KEY   = os.environ.get("OPENAI_API_KEY", "")
+    TTS_MODEL        = "tts-1"
+    TTS_VOICE        = "nova"
+    TTS_PLAYBACK_CMD = "aplay"
 
 # ─── System Prompt ─────────────────────────────────────────
 SYSTEM_PROMPT = f"""You are {BOT_NAME}, a small friendly desktop robot companion.
@@ -263,9 +269,16 @@ class Brain:
             dc_pin=DISPLAY_DC_PIN,
             rst_pin=DISPLAY_RST_PIN,
         )
+        self.voice = Voice(
+            api_key=OPENAI_API_KEY,
+            model=TTS_MODEL,
+            voice=TTS_VOICE,
+            playback_cmd=TTS_PLAYBACK_CMD,
+        )
         log.info(f"Brain initialized. Model: {AI_MODEL}. Bot name: {BOT_NAME}. "
                  f"Face: {'connected' if self.face.is_connected() else 'offline'}. "
-                 f"Display: {'connected' if self.display.is_connected() else 'offline'}.")
+                 f"Display: {'connected' if self.display.is_connected() else 'offline'}. "
+                 f"Voice: {'ready' if self.voice.is_available() else 'offline'}.")
 
         # Idle / dream tracking
         self.last_input_time = time.time()
@@ -327,6 +340,9 @@ class Brain:
             self.display.add_message("user", user_input)
             self.display.add_message("pip", parsed["speech"])
             self.display.update_status(parsed["emotion"], color_hex)
+
+            # Speak the reply through the speaker
+            self.voice.say(parsed["speech"])
 
             return parsed
 
@@ -429,6 +445,8 @@ def terminal_chat():
         # Stop dream thread before closing face
         if hasattr(brain, '_dream_stop'):
             brain._dream_stop.set()
+        if hasattr(brain, 'voice') and brain.voice is not None:
+            brain.voice.close()
         if brain.face is not None:
             brain.face.close()
         if hasattr(brain, 'display') and brain.display is not None:

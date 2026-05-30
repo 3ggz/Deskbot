@@ -55,10 +55,10 @@ echo "[6/6] Setting up environment..."
 if [ ! -f ".env" ]; then
     cat > .env << EOF
 # Desk Companion Bot — Environment Variables
-# Fill in your actual API key below
+# Fill in your actual API keys below
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
-# Optional: OpenAI key for Whisper STT
+# OpenAI key — used for TTS (Pip's voice) and Whisper STT (future)
 OPENAI_API_KEY=your_openai_api_key_here
 EOF
     echo "  Created .env file — add your API keys!"

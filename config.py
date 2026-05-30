@@ -137,3 +137,9 @@ DISPLAY_SPI_BUS    = 0
 DISPLAY_SPI_DEVICE = 0       # CE0 — chip select pin 24 on Pi
 DISPLAY_DC_PIN     = 25      # data/command select
 DISPLAY_RST_PIN    = 24      # reset
+
+# ─── Voice / TTS (OpenAI) ──────────────────────────────────
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+TTS_MODEL = "tts-1"       # "tts-1" (fast/cheap) or "tts-1-hd" (higher quality, slower)
+TTS_VOICE = "nova"        # alloy, echo, fable, onyx, nova, shimmer
+TTS_PLAYBACK_CMD = "aplay"
